@@ -61,7 +61,7 @@ public class MapRender {
                             for (int tilex = 0; tilex < 16; tilex++) {
 
                                 int id = 16 * tiley + tilex;
-                                int shapeIndex = cbb.get(offset + 0) & 0xff + 256 * (cbb.get(offset + 1) & 3);
+                                int shapeIndex = (cbb.get(offset + 0) & 0xff) + 256 * (cbb.get(offset + 1) & 3);
                                 int frameIndex = (cbb.get(offset + 1) >> 2) & 0x1f;
 
                                 offset += 2;
@@ -122,8 +122,7 @@ public class MapRender {
                             for (int tilex = 0; tilex < 16; tilex++) {
                                 Shape shape = chunk.shapes[tiley][tilex];
                                 Record rec = records.get(shape.shapeIndex);
-                                int fidx = shape.frameIndex >= rec.frames.length ? 0 : shape.frameIndex;
-                                region.bi.getGraphics().drawImage(rec.frames[fidx].bi, x * tilex, y * tiley, null);
+                                region.bi.getGraphics().drawImage(rec.frames[shape.frameIndex].bi, x * tilex, y * tiley, null);
                             }
                         }
                     }
