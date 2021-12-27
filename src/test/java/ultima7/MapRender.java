@@ -246,7 +246,10 @@ public class MapRender {
                         int yabove = bb.getShort() & 0xff;
                         int ybelow = bb.getShort() & 0xff;
 
-                        this.frames[n] = new Frame(n, xright + xleft + 1, yabove + ybelow + 1);
+                        int width = xright + xleft + 1;
+                        int height = yabove + ybelow + 1;
+
+                        this.frames[n] = new Frame(n, width, height);
 
                         while (true) {
                             int scanData = bb.getShort();
@@ -257,8 +260,11 @@ public class MapRender {
                                 break;
                             }
 
-                            int scanX = bb.getShort();
-                            int scanY = bb.getShort();
+                            int offsetX = bb.getShort();
+                            int offsetY = bb.getShort();
+
+                            int pixPtr = (yabove + offsetY) * width + (xleft + offsetX);
+                            this.frames[n].pixels.position(pixPtr);
 
                             if (encoded == 0) {
                                 for (int b = 0; b < scanLen; b++) {
@@ -303,12 +309,9 @@ public class MapRender {
             }
 
             for (int f = 0; f < nframes; f++) {
-                this.frames[f].pixels.flip();
+                this.frames[f].pixels.position(0);
                 for (int y = 0; y < this.frames[f].height; y++) {
                     for (int x = 0; x < this.frames[f].width; x++) {
-                        if (this.frames[f].pixels.position() >= this.frames[f].pixels.limit()) {
-                            break;
-                        }
                         int idx = this.frames[f].pixels.get() & 0xff;
                         int rgb = palettes.get(PALETTE_DAY).rgb(idx);
                         this.frames[f].bi.setRGB(x, y, rgb);
