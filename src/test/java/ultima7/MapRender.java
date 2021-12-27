@@ -21,24 +21,19 @@ public class MapRender {
         FileInputStream sis = new FileInputStream("c://Users//panti/Desktop//STATIC//SHAPES.VGA");
         FileInputStream pis = new FileInputStream("c://Users//panti/Desktop//STATIC//PALETTES.FLX");
 
-        ByteBuffer cbb = ByteBuffer.wrap(IOUtils.toByteArray(cis));
-        ByteBuffer mbb = ByteBuffer.wrap(IOUtils.toByteArray(mis));
-        ByteBuffer sbb = ByteBuffer.wrap(IOUtils.toByteArray(sis));
-        ByteBuffer pbb = ByteBuffer.wrap(IOUtils.toByteArray(pis));
-
-        cbb.order(ByteOrder.LITTLE_ENDIAN);
-        mbb.order(ByteOrder.LITTLE_ENDIAN);
-        sbb.order(ByteOrder.LITTLE_ENDIAN);
-        pbb.order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer cbb = ByteBuffer.wrap(IOUtils.toByteArray(cis)).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer mbb = ByteBuffer.wrap(IOUtils.toByteArray(mis)).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer sbb = ByteBuffer.wrap(IOUtils.toByteArray(sis)).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer pbb = ByteBuffer.wrap(IOUtils.toByteArray(pis)).order(ByteOrder.LITTLE_ENDIAN);
 
         Region[][] regions = new Region[12][12];
-        short[][][][] chunkIds = new short[12][12][16][16];
+        int[][][][] chunkIds = new int[12][12][16][16];
 
         for (int yy = 0; yy < 12; yy++) {
             for (int xx = 0; xx < 12; xx++) {
                 for (int y = 0; y < 16; y++) {
                     for (int x = 0; x < 16; x++) {
-                        short id = mbb.getShort();
+                        int id = mbb.getShort() & 0xff;
                         chunkIds[yy][xx][y][x] = id;
                     }
                 }
@@ -55,7 +50,7 @@ public class MapRender {
                 for (int y = 0; y < 16; y++) {
                     for (int x = 0; x < 16; x++) {
 
-                        short chunkId = chunkIds[yy][xx][y][x];
+                        int chunkId = chunkIds[yy][xx][y][x];
 
                         int offset = chunkId * 512;
 
@@ -139,8 +134,65 @@ public class MapRender {
         for (int yy = 0; yy < 12; yy++) {
             for (int xx = 0; xx < 12; xx++) {
                 Region region = regions[yy][xx];
-                ImageIO.write(region.bi, "PNG", new File("region-" + yy + "-" + xx + ".png"));
+                ImageIO.write(region.bi, "PNG", new File("target/region-" + yy + "-" + xx + ".png"));
             }
+        }
+
+    }
+
+    private static class Region {
+
+        int id;
+        Chunk[][] chunks;
+        BufferedImage bi = new BufferedImage(16 * 8, 16 * 8, BufferedImage.TYPE_INT_ARGB);
+
+        public Region(int id, Chunk[][] chunks) {
+            this.id = id;
+            this.chunks = chunks;
+        }
+
+    }
+
+    private static class Chunk {
+
+        int id;
+        Shape[][] shapes;
+
+        public Chunk(int id, Shape[][] shapes) {
+            this.id = id;
+            this.shapes = shapes;
+        }
+
+    }
+
+    private static class Shape {
+
+        int id;
+        int shapeIndex;
+        int frameIndex;
+
+        public Shape(int id, int shapeIndex, int frameIndex) {
+            this.id = id;
+            this.shapeIndex = shapeIndex;
+            this.frameIndex = frameIndex;
+        }
+
+    }
+
+    private static class Frame {
+
+        int number;
+        int width;
+        int height;
+        BufferedImage bi;
+        ByteBuffer pixels;
+
+        public Frame(int number, int width, int height) {
+            this.number = number;
+            this.width = width;
+            this.height = height;
+            this.bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            this.pixels = ByteBuffer.allocate(width * height);
         }
 
     }
@@ -166,11 +218,7 @@ public class MapRender {
         public String toString() {
             boolean raw = isRawChunkBits();
             return String.format("Record %d offset [%d] len [%d] %s shapeSize [%d] offset count [%d] frames [%s]",
-                    this.num, this.offset, this.len,
-                    raw ? "RAW" : "SHP",
-                    shapeSize(),
-                    offsetCount(),
-                    frames != null ? frames.length : shapeSize() / 8 * 8);
+                    this.num, this.offset, this.len, raw ? "RAW" : "SHP", shapeSize(), offsetCount(), frames != null ? frames.length : this.len / 8 * 8);
         }
 
         void set() {
@@ -182,15 +230,11 @@ public class MapRender {
 
                 if (nframes > 0) {
 
-                    if (this.num == 188) {
-                        int c = 0;
-                    }
-
                     this.frames = new Frame[nframes];
 
                     int[] offsets = new int[nframes];
                     for (int n = 0; n < nframes; n++) {
-                        offsets[n] = toUInt(n * 4 + 4);
+                        offsets[n] = read4(this.bb, n * 4 + 4);
                     }
 
                     for (int n = 0; n < nframes; n++) {
@@ -279,82 +323,25 @@ public class MapRender {
         }
 
         int shapeSize() {
-            return toUInt(0);
+            return read4(this.bb, 0);
         }
 
         int offsetCount() {
-            return (toUInt(4) - 4) / 4;
-        }
-
-        int toUInt(int idx) {
-            return (bb.get(idx + 0) & 0xff) << 0
-                    | (bb.get(idx + 1) & 0xff) << 8
-                    | (bb.get(idx + 2) & 0xff) << 16
-                    | (bb.get(idx + 3) & 0xff) << 24;
-        }
-
-        int toUShort(int idx) {
-            return (bb.get(idx + 0) & 0xff) << 0
-                    | (bb.get(idx + 3) & 0xff) << 8;
+            return (read4(this.bb, 4) - 4) / 4;
         }
 
     }
 
-    private static class Region {
-
-        int id;
-        Chunk[][] chunks;
-        BufferedImage bi = new BufferedImage(16 * 8, 16 * 8, BufferedImage.TYPE_INT_ARGB);
-
-        public Region(int id, Chunk[][] chunks) {
-            this.id = id;
-            this.chunks = chunks;
-        }
-
+    private static int read4(ByteBuffer bb, int idx) {
+        return (bb.get(idx + 0) & 0xff) << 0
+                | (bb.get(idx + 1) & 0xff) << 8
+                | (bb.get(idx + 2) & 0xff) << 16
+                | (bb.get(idx + 3) & 0xff) << 24;
     }
 
-    private static class Chunk {
-
-        int id;
-        Shape[][] shapes;
-
-        public Chunk(int id, Shape[][] shapes) {
-            this.id = id;
-            this.shapes = shapes;
-        }
-
-    }
-
-    private static class Shape {
-
-        int id;
-        int shapeIndex;
-        int frameIndex;
-
-        public Shape(int id, int shapeIndex, int frameIndex) {
-            this.id = id;
-            this.shapeIndex = shapeIndex;
-            this.frameIndex = frameIndex;
-        }
-
-    }
-
-    private static class Frame {
-
-        int number;
-        int width;
-        int height;
-        BufferedImage bi;
-        ByteBuffer pixels;
-
-        public Frame(int number, int width, int height) {
-            this.number = number;
-            this.width = width;
-            this.height = height;
-            this.bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-            this.pixels = ByteBuffer.allocate(width * height);
-        }
-
+    private static int read2(ByteBuffer bb, int idx) {
+        return (bb.get(idx + 0) & 0xff) << 0
+                | (bb.get(idx + 1) & 0xff) << 8;
     }
 
     public static int PALETTE_DAY = 0;
@@ -367,7 +354,6 @@ public class MapRender {
     public static int PALETTE_SPELL = 6; // light spell.
     public static int PALETTE_CANDLE = 7; // is somewhat warmer, candles.
     public static int PALETTE_RED = 8;      // Used when hit in combat.
-    // 9 has lots of black.
     public static int PALETTE_LIGHTNING = 10;
     public static int PALETTE_SINGLE_LIGHT = 11;
     public static int PALETTE_MANY_LIGHTS = 12;
@@ -418,6 +404,10 @@ public class MapRender {
             int r = palette[3 * idx];
             int g = palette[3 * idx + 1];
             int b = palette[3 * idx + 2];
+
+            r = (r * 255) / 63;
+            g = (g * 255) / 63;
+            b = (b * 255) / 63;
 
             int rgb = (r << 24) | (g << 16) | (b << 8);
             return rgb;
