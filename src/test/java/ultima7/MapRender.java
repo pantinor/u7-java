@@ -405,9 +405,9 @@ public class MapRender {
             int g = palette[3 * idx + 1];
             int b = palette[3 * idx + 2];
 
-            r = (r * 255) / 63;
-            g = (g * 255) / 63;
-            b = (b * 255) / 63;
+            r = (r * 255) / 100;
+            g = (g * 255) / 100;
+            b = (b * 255) / 100;
 
             int rgb = (r << 24) | (g << 16) | (b << 8);
             return rgb;
