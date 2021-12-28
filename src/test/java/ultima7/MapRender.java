@@ -1,5 +1,6 @@
 package ultima7;
 
+import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
@@ -8,7 +9,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
-import javax.imageio.ImageIO;
 
 public class MapRender {
 
@@ -112,6 +112,27 @@ public class MapRender {
             System.out.println(rec);
         }
 
+        TexturePacker.Settings settings = new TexturePacker.Settings();
+        settings.minWidth = 8;
+        settings.minHeight = 8;
+        settings.maxWidth = 512;
+        settings.maxHeight = 2056;
+        settings.paddingX = 0;
+        settings.paddingY = 0;
+        settings.fast = true;
+        settings.pot = false;
+        settings.grid = true;
+        settings.edgePadding = false;
+        settings.bleed = false;
+        settings.debug = false;
+        settings.alias = false;
+
+        packAtlas(0, 149, "base-tiles", records, settings);
+//        packAtlas(150, 300, "shape-tiles-1", records, settings);
+//        packAtlas(301, 600, "shape-tiles-2", records, settings);
+//        packAtlas(601, 900, "shape-tiles-3", records, settings);
+//        packAtlas(900, 1024, "shape-tiles-4", records, settings);
+
         for (int yy = 0; yy < 12; yy++) {
             for (int xx = 0; xx < 12; xx++) {
                 Region region = regions[yy][xx];
@@ -122,7 +143,7 @@ public class MapRender {
                             for (int tilex = 0; tilex < 16; tilex++) {
                                 Shape shape = chunk.shapes[tiley][tilex];
                                 Record rec = records.get(shape.shapeIndex);
-                                region.bi.getGraphics().drawImage(rec.frames[shape.frameIndex].bi, x * tilex, y * tiley, null);
+                                //region.bi.getGraphics().drawImage(rec.frames[shape.frameIndex].bi, x * tilex, y * tiley, null);
                             }
                         }
                     }
@@ -133,7 +154,7 @@ public class MapRender {
         for (int yy = 0; yy < 12; yy++) {
             for (int xx = 0; xx < 12; xx++) {
                 Region region = regions[yy][xx];
-                ImageIO.write(region.bi, "PNG", new File("target/region-" + yy + "-" + xx + ".png"));
+                //ImageIO.write(region.bi, "PNG", new File("target/region-" + yy + "-" + xx + ".png"));
             }
         }
 
@@ -341,11 +362,6 @@ public class MapRender {
                 | (bb.get(idx + 3) & 0xff) << 24;
     }
 
-    private static int read2(ByteBuffer bb, int idx) {
-        return (bb.get(idx + 0) & 0xff) << 0
-                | (bb.get(idx + 1) & 0xff) << 8;
-    }
-
     public static int PALETTE_DAY = 0;
     public static int PALETTE_DUSK = 1;
     public static int PALETTE_DAWN = 1;     // Think this is it.
@@ -407,14 +423,25 @@ public class MapRender {
             int g = palette[3 * idx + 1];
             int b = palette[3 * idx + 2];
 
-            r = (r * 255) / 100;
-            g = (g * 255) / 100;
-            b = (b * 255) / 100;
-
-            int rgb = (r << 24) | (g << 16) | (b << 8);
+            int rgb = 255 << 24 | (r << 16) | (g << 8) | (b << 0);
             return rgb;
         }
 
+    }
+
+    private static void packAtlas(int start, int end, String atlasName, List<Record> records, TexturePacker.Settings settings) {
+        TexturePacker tp = new TexturePacker(settings);
+        for (Record rec : records) {
+            if (rec.num < start || rec.num > end) {
+                continue;
+            }
+            System.out.printf("Packing images for %d\n", rec.num);
+            for (Frame f : rec.frames) {
+                String name = String.format("shape-%d_%d", rec.num, f.number);
+                tp.addImage(f.bi, name);
+            }
+        }
+        tp.pack(new File("target/"), atlasName);
     }
 
 }
