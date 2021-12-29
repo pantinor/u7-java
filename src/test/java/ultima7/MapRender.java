@@ -7,6 +7,8 @@ import java.io.FileInputStream;
 import org.apache.commons.io.IOUtils;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import javax.imageio.ImageIO;
@@ -75,7 +77,8 @@ public class MapRender {
                     }
                 }
 
-                getFixedObjects(region);
+                getObjects(region, "U7IFIX", true);
+                getObjects(region, "U7IREG", false);
 
             }
         }
@@ -157,10 +160,15 @@ public class MapRender {
                             for (int tilex = 0; tilex < 16; tilex++) {
                                 Shape shape = chunk.shapes[tiley][tilex];
                                 Record rec = records.get(shape.shapeIndex);
-                                region.bi.getGraphics().drawImage(rec.frames[shape.frameIndex].bi, (16 * 8 * x) + (8 * tilex), (16 * 8 * y) + (8 * tiley), null);
+                                try {
+                                    region.bi.getGraphics().drawImage(rec.frames[shape.frameIndex].bi, (16 * 8 * x) + (8 * tilex), (16 * 8 * y) + (8 * tiley), null);
+                                } catch (Exception e) {
+                                    //ignore - must be a bug in the shapes vga for shape number 48
+                                    //System.err.printf("drawing [%d,%d] [%d,%d] si [%d] fidx [%d] flen [%d]\n", yy, xx, y, x, shape.shapeIndex, shape.frameIndex, rec.frames.length);
+                                }
                             }
                         }
-                        if (chunk.objects != null) {
+                        if (!chunk.objects.isEmpty()) {
                             for (int i = chunk.objects.size() - 1; i >= 0; i--) {
                                 ObjectEntry e = chunk.objects.get(i);
                                 Record rec = records.get(e.shapeIndex);
@@ -198,7 +206,7 @@ public class MapRender {
 
         int id;
         Shape[][] shapes;
-        List<ObjectEntry> objects;
+        List<ObjectEntry> objects = new ArrayList<>();
 
         public Chunk(int id, Shape[][] shapes) {
             this.id = id;
@@ -261,6 +269,9 @@ public class MapRender {
         public String toString() {
             return String.format("Record %d offset [%d] len [%d] %s shapeSize [%d] offset count [%d] frames [%s] hgt [%d]",
                     this.num, this.offset, this.len, isRawChunkBits() ? "RAW" : "SHP", shapeSize(), offsetCount(), frames != null ? frames.length : this.len / 8 * 8, dims[2]);
+
+            //return String.format("Record %d [%s] isTransparent [%s] isTranslucent [%s] isSolid [%s] is Water [%s] isDoor [%s] isLightSource [%s]",
+            //        this.num, isRawChunkBits() ? "RAW" : "SHP", isTransparent(), isTranslucent(), isSolid(), isWater(), isDoor(), isLightSource());
         }
 
         void set() {
@@ -381,6 +392,42 @@ public class MapRender {
             return (read4(this.bb, 4) - 4) / 4;
         }
 
+        boolean isAnimated() {
+            return (tfa[0] & (1 << 2)) != 0;
+        }
+
+        boolean isSolid() {
+            return (tfa[0] & (1 << 3)) != 0;
+        }
+
+        boolean isWater() {
+            return (tfa[0] & (1 << 4)) != 0;
+        }
+
+        boolean isPoisonous() {
+            return (tfa[1] & (1 << 4)) != 0;
+        }
+
+        boolean isField() {
+            return (tfa[1] & (1 << 4)) != 0;
+        }
+
+        boolean isDoor() {
+            return (tfa[1] & (1 << 5)) != 0;
+        }
+
+        boolean isTransparent() {
+            return (tfa[1] & (1 << 7)) != 0;
+        }
+
+        boolean isLightSource() {
+            return (tfa[2] & (1 << 6)) != 0;
+        }
+
+        boolean isTranslucent() {
+            return (tfa[2] & (1 << 7)) != 0;
+        }
+
     }
 
     private static int read4(ByteBuffer bb) {
@@ -488,10 +535,14 @@ public class MapRender {
         tp.pack(new File("target/"), atlasName);
     }
 
-    private static void getFixedObjects(Region region) throws Exception {
+    private static void getObjects(Region region, String prefix, boolean fixed) throws Exception {
 
         String chars = "0123456789abcdef";
-        String fname = ("U7IFIX" + chars.charAt(region.id / 16) + chars.charAt(region.id % 16)).toUpperCase();
+        String fname = (prefix + chars.charAt(region.id / 16) + chars.charAt(region.id % 16)).toUpperCase();
+
+        if (Files.notExists(Paths.get("c://Users//panti/Desktop//STATIC//" + fname))) {
+            return;
+        }
 
         FileInputStream is = new FileInputStream("c://Users//panti/Desktop//STATIC//" + fname);
         ByteBuffer bb = ByteBuffer.wrap(IOUtils.toByteArray(is)).order(ByteOrder.LITTLE_ENDIAN);
@@ -507,7 +558,7 @@ public class MapRender {
             int len = read4(bb);
             if (len > 0) {
                 byte[] data = new byte[len];
-                ObjectEntries obj = new ObjectEntries(i, offset, len, data);
+                ObjectEntries obj = new ObjectEntries(i, offset, len, data, fixed);
                 entries[i] = obj;
             }
         }
@@ -531,8 +582,10 @@ public class MapRender {
                 }
 
                 Chunk chunk = region.chunks[cy][cx];
-                chunk.objects = obj.entries;
-                obj.entries = null;
+
+                if (obj.entries != null && !obj.entries.isEmpty()) {
+                    chunk.objects.addAll(obj.entries);
+                }
 
                 //System.out.printf("Region [%d] chunk [%d,%d] objects %d\n ", region.id, cy, cx, chunk.objects.size());
             }
@@ -547,6 +600,7 @@ public class MapRender {
         int tz;
         int shapeIndex;
         int frameIndex;
+        boolean fixed;
     }
 
     private static class ObjectEntries {
@@ -555,35 +609,51 @@ public class MapRender {
         int offset;
         int len;
         byte[] data;
+        boolean fixed;
         ByteBuffer bb;
         List<ObjectEntry> entries;
 
-        public ObjectEntries(int num, int offset, int len, byte[] data) {
+        public ObjectEntries(int num, int offset, int len, byte[] data, boolean fixed) {
             this.num = num;
             this.offset = offset;
             this.len = len;
             this.data = data;
+            this.fixed = fixed;
             this.bb = ByteBuffer.wrap(data);
             this.bb.order(ByteOrder.LITTLE_ENDIAN);
         }
 
         void set() {
-            int cnt = len / 4;
-            this.entries = new ArrayList<>();
-            for (int i = 0; i < cnt; i++) {
-                byte b0 = bb.get();
-                byte b1 = bb.get();
-                byte b2 = bb.get();
-                byte b3 = bb.get();
+            if (this.fixed) {
+                int cnt = len / 4;
+                this.entries = new ArrayList<>();
+                for (int i = 0; i < cnt; i++) {
+                    byte b0 = bb.get();
+                    byte b1 = bb.get();
+                    byte b2 = bb.get();
+                    byte b3 = bb.get();
 
-                ObjectEntry e = new ObjectEntry();
-                e.tx = (b0 >> 4) & 0xf;
-                e.ty = b0 & 0xf;
-                e.tz = b1 & 0xf;
-                e.shapeIndex = (b2 & 0xff) + 256 * (b3 & 3);
-                e.frameIndex = (b3 >> 2) & 0x1f;
+                    ObjectEntry e = new ObjectEntry();
+                    e.tx = (b0 >> 4) & 0xf;
+                    e.ty = b0 & 0xf;
+                    e.tz = b1 & 0xf;
+                    e.shapeIndex = (b2 & 0xff) + 256 * (b3 & 3);
+                    e.frameIndex = (b3 >> 2) & 0x1f;
+                    e.fixed = true;
 
-                entries.add(e);
+                    entries.add(e);
+                }
+            } else {
+                while (bb.position() < bb.limit()) {
+                    byte len = bb.get();
+                    if (len == 0 || len == 1) {
+
+                    } else if (len == 2) {
+
+                    } else {
+                        //todo
+                    }
+                }
             }
 
         }
