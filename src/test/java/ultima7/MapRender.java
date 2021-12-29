@@ -36,8 +36,7 @@ public class MapRender {
             for (int xx = 0; xx < 12; xx++) {
                 for (int y = 0; y < 16; y++) {
                     for (int x = 0; x < 16; x++) {
-                        int id = read2(mbb, mbb.position());
-                        mbb.getShort();
+                        int id = read2(mbb);
                         chunkIds[yy][xx][y][x] = id;
                     }
                 }
@@ -75,16 +74,19 @@ public class MapRender {
                         }
                     }
                 }
+
+                getFixedObjects(region);
+
             }
         }
 
         pbb.position(0x54);
-        int numPals = pbb.getInt();
+        int numPals = read4(pbb);
 
         pbb.position(0x80);
         for (int i = 0; i < numPals; i++) {
-            int offset = pbb.getInt();
-            int len = pbb.getInt();
+            int offset = read4(pbb);
+            int len = read4(pbb);
             byte[] entry = new byte[len];
             palettes.add(new Palette(i, offset, len, entry));
         }
@@ -96,16 +98,16 @@ public class MapRender {
         }
 
         sbb.position(0x54);
-        int numRecords = sbb.getInt();
+        int numRecords = read4(sbb);
 
         List<Record> records = new ArrayList<>();
 
         sbb.position(0x80);
         for (int i = 0; i < numRecords; i++) {
-            int offset = sbb.getInt();
-            int len = sbb.getInt();
+            int offset = read4(sbb);
+            int len = read4(sbb);
             byte[] entry = new byte[len];
-            
+
             Record rec = new Record(i, offset, len, entry);
             records.add(rec);
 
@@ -122,7 +124,7 @@ public class MapRender {
             sbb.position(rec.offset);
             sbb.get(rec.data);
             rec.set();
-            System.out.println(rec);
+            //System.out.println(rec);
         }
 
         TexturePacker.Settings settings = new TexturePacker.Settings();
@@ -140,11 +142,11 @@ public class MapRender {
         settings.debug = false;
         settings.alias = false;
 
-        //packAtlas(0, 149, "base-tiles", records, settings);
-        //packAtlas(150, 300, "shape-tiles-1", records, settings);
-        //packAtlas(301, 600, "shape-tiles-2", records, settings);
-        //packAtlas(601, 900, "shape-tiles-3", records, settings);
-        //packAtlas(900, 1024, "shape-tiles-4", records, settings);
+//        packAtlas(0, 149, "base-tiles", records, settings);
+//        packAtlas(150, 300, "shape-tiles-1", records, settings);
+//        packAtlas(301, 600, "shape-tiles-2", records, settings);
+//        packAtlas(601, 900, "shape-tiles-3", records, settings);
+//        packAtlas(900, 1024, "shape-tiles-4", records, settings);
         for (int yy = 0; yy < 12; yy++) {
             for (int xx = 0; xx < 12; xx++) {
                 Region region = regions[yy][xx];
@@ -156,6 +158,13 @@ public class MapRender {
                                 Shape shape = chunk.shapes[tiley][tilex];
                                 Record rec = records.get(shape.shapeIndex);
                                 region.bi.getGraphics().drawImage(rec.frames[shape.frameIndex].bi, (16 * 8 * x) + (8 * tilex), (16 * 8 * y) + (8 * tiley), null);
+                            }
+                        }
+                        if (chunk.objects != null) {
+                            for (int i = chunk.objects.size() - 1; i >= 0; i--) {
+                                ObjectEntry e = chunk.objects.get(i);
+                                Record rec = records.get(e.shapeIndex);
+                                region.bi.getGraphics().drawImage(rec.frames[e.frameIndex].bi, (16 * 8 * x) + (e.tx), (16 * 8 * y) + (e.ty), null);
                             }
                         }
                     }
@@ -189,6 +198,7 @@ public class MapRender {
 
         int id;
         Shape[][] shapes;
+        List<ObjectEntry> objects;
 
         public Chunk(int id, Shape[][] shapes) {
             this.id = id;
@@ -273,10 +283,10 @@ public class MapRender {
 
                         this.bb.position(offsets[n]);
 
-                        int xright = bb.getShort() & 0xff;
-                        int xleft = bb.getShort() & 0xff;
-                        int yabove = bb.getShort() & 0xff;
-                        int ybelow = bb.getShort() & 0xff;
+                        int xright = bb.getShort();
+                        int xleft = bb.getShort();
+                        int yabove = bb.getShort();
+                        int ybelow = bb.getShort();
 
                         int width = xright + xleft + 1;
                         int height = yabove + ybelow + 1;
@@ -351,8 +361,9 @@ public class MapRender {
                 }
                 //crop out alpha or shrink the images that are all black and empty
                 if (!isRawChunkBits()) {
-                    double[] adbl = new double[]{(double) 0, (double) 0, (double) 0, (double) 255};
-                    this.frames[f].bi = ImageTransparency.cropTransparent(adbl, this.frames[f].bi);
+                    //int alpha = 0x000000FF;
+                    //this.frames[f].bi = ImageTransparency.cropTransparent(this.frames[f].bi, alpha);
+                    //this.frames[f].bi = ImageTransparency.makeColorTransparent(this.frames[f].bi, alpha);
                 }
             }
 
@@ -372,28 +383,39 @@ public class MapRender {
 
     }
 
+    private static int read4(ByteBuffer bb) {
+        int ret = read4(bb, bb.position());
+        bb.getInt();
+        return ret;
+    }
+
     private static int read4(ByteBuffer bb, int idx) {
         return (bb.get(idx + 0) & 0xff) << 0
                 | (bb.get(idx + 1) & 0xff) << 8
                 | (bb.get(idx + 2) & 0xff) << 16
                 | (bb.get(idx + 3) & 0xff) << 24;
     }
-    
+
+    private static int read2(ByteBuffer bb) {
+        int ret = read2(bb, bb.position());
+        bb.getShort();
+        return ret;
+    }
+
     private static int read2(ByteBuffer bb, int idx) {
         return (bb.get(idx + 0) & 0xff) << 0
                 | (bb.get(idx + 1) & 0xff) << 8;
     }
 
     public static int PALETTE_DAY = 0;
-    public static int PALETTE_DUSK = 1;
-    public static int PALETTE_DAWN = 1;     // Think this is it.
+    public static int PALETTE_DAWN = 1;
     public static int PALETTE_NIGHT = 2;
-    public static int PALETTE_INVISIBLE = 3;    // When Avatar is invisible.
-    public static int PALETTE_OVERCAST = 4;     // When raining or overcast during daytime
+    public static int PALETTE_INVISIBLE = 3;
+    public static int PALETTE_OVERCAST = 4;
     public static int PALETTE_FOG = 5;
-    public static int PALETTE_SPELL = 6; // light spell.
-    public static int PALETTE_CANDLE = 7; // is somewhat warmer, candles.
-    public static int PALETTE_RED = 8;      // Used when hit in combat.
+    public static int PALETTE_SPELL = 6;
+    public static int PALETTE_CANDLE = 7;
+    public static int PALETTE_RED = 8;
     public static int PALETTE_LIGHTNING = 10;
     public static int PALETTE_SINGLE_LIGHT = 11;
     public static int PALETTE_MANY_LIGHTS = 12;
@@ -464,6 +486,108 @@ public class MapRender {
             }
         }
         tp.pack(new File("target/"), atlasName);
+    }
+
+    private static void getFixedObjects(Region region) throws Exception {
+
+        String chars = "0123456789abcdef";
+        String fname = ("U7IFIX" + chars.charAt(region.id / 16) + chars.charAt(region.id % 16)).toUpperCase();
+
+        FileInputStream is = new FileInputStream("c://Users//panti/Desktop//STATIC//" + fname);
+        ByteBuffer bb = ByteBuffer.wrap(IOUtils.toByteArray(is)).order(ByteOrder.LITTLE_ENDIAN);
+
+        bb.position(0x54);
+        int num = read4(bb);
+
+        ObjectEntries[] entries = new ObjectEntries[num];
+
+        bb.position(0x80);
+        for (int i = 0; i < num; i++) {
+            int offset = read4(bb);
+            int len = read4(bb);
+            if (len > 0) {
+                byte[] data = new byte[len];
+                ObjectEntries obj = new ObjectEntries(i, offset, len, data);
+                entries[i] = obj;
+            }
+        }
+
+        for (ObjectEntries obj : entries) {
+            if (obj == null) {
+                continue;
+            }
+            bb.position(obj.offset);
+            bb.get(obj.data);
+            obj.set();
+        }
+
+        for (int cy = 0; cy < 16; cy++) {
+            for (int cx = 0; cx < 16; cx++) {
+                int idx = cy * 16 + cx;
+                ObjectEntries obj = entries[idx];
+
+                if (obj == null) {
+                    continue;
+                }
+
+                Chunk chunk = region.chunks[cy][cx];
+                chunk.objects = obj.entries;
+                obj.entries = null;
+
+                //System.out.printf("Region [%d] chunk [%d,%d] objects %d\n ", region.id, cy, cx, chunk.objects.size());
+            }
+        }
+
+    }
+
+    private static class ObjectEntry {
+
+        int tx;
+        int ty;
+        int tz;
+        int shapeIndex;
+        int frameIndex;
+    }
+
+    private static class ObjectEntries {
+
+        int num;
+        int offset;
+        int len;
+        byte[] data;
+        ByteBuffer bb;
+        List<ObjectEntry> entries;
+
+        public ObjectEntries(int num, int offset, int len, byte[] data) {
+            this.num = num;
+            this.offset = offset;
+            this.len = len;
+            this.data = data;
+            this.bb = ByteBuffer.wrap(data);
+            this.bb.order(ByteOrder.LITTLE_ENDIAN);
+        }
+
+        void set() {
+            int cnt = len / 4;
+            this.entries = new ArrayList<>();
+            for (int i = 0; i < cnt; i++) {
+                byte b0 = bb.get();
+                byte b1 = bb.get();
+                byte b2 = bb.get();
+                byte b3 = bb.get();
+
+                ObjectEntry e = new ObjectEntry();
+                e.tx = (b0 >> 4) & 0xf;
+                e.ty = b0 & 0xf;
+                e.tz = b1 & 0xf;
+                e.shapeIndex = (b2 & 0xff) + 256 * (b3 & 3);
+                e.frameIndex = (b3 >> 2) & 0x1f;
+
+                entries.add(e);
+            }
+
+        }
+
     }
 
 }
