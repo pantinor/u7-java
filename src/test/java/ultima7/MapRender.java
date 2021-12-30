@@ -168,23 +168,35 @@ public class MapRender {
                                 }
                             }
                         }
+                    }
+                }
+                for (int y = 0; y < 16; y++) {
+                    for (int x = 0; x < 16; x++) {
+                        Chunk chunk = region.chunks[y][x];
                         if (!chunk.objects.isEmpty()) {
                             for (int i = chunk.objects.size() - 1; i >= 0; i--) {
                                 ObjectEntry e = chunk.objects.get(i);
                                 Record rec = records.get(e.shapeIndex);
-                                region.bi.getGraphics().drawImage(rec.frames[e.frameIndex].bi, (16 * 8 * x) + (e.tx), (16 * 8 * y) + (e.ty), null);
+
+                                region.bi.getGraphics().drawImage(rec.frames[e.frameIndex].bi,
+                                        (16 * 8 * x) + (8 * e.tx) - rec.frames[e.frameIndex].width + e.tx,
+                                        (16 * 8 * y) + (8 * e.ty) - rec.frames[e.frameIndex].height + e.ty, null);
                             }
                         }
                     }
                 }
+                //break;
             }
+            //break;
         }
 
         for (int yy = 0; yy < 12; yy++) {
             for (int xx = 0; xx < 12; xx++) {
                 Region region = regions[yy][xx];
                 ImageIO.write(region.bi, "PNG", new File("target/region-" + yy + "-" + xx + ".png"));
+                //break;
             }
+            //break;
         }
 
     }
@@ -360,22 +372,32 @@ public class MapRender {
                     }
                 }
             }
+            
+            int transparent = 0;
 
             for (int f = 0; f < nframes; f++) {
+
                 this.frames[f].pixels.position(0);
+                int[][] data = new int[this.frames[f].height][this.frames[f].width];
+
                 for (int y = 0; y < this.frames[f].height; y++) {
                     for (int x = 0; x < this.frames[f].width; x++) {
                         int idx = this.frames[f].pixels.get() & 0xff;
+                        data[y][x] = idx;
+                    }
+                }
+
+                for (int y = 0; y < this.frames[f].height; y++) {
+                    for (int x = 0; x < this.frames[f].width; x++) {
+                        int idx = data[y][x];
                         int rgb = palettes.get(PALETTE_DAY).rgb(idx);
+                        if (!isRawChunkBits() && idx == transparent && ImageTransparency.checkAllAdjacentsAreTransparent(data, y, x, transparent)) {
+                            rgb = 0;
+                        }
                         this.frames[f].bi.setRGB(x, y, rgb);
                     }
                 }
-                //crop out alpha or shrink the images that are all black and empty
-                if (!isRawChunkBits()) {
-                    //int alpha = 0x000000FF;
-                    //this.frames[f].bi = ImageTransparency.cropTransparent(this.frames[f].bi, alpha);
-                    //this.frames[f].bi = ImageTransparency.makeColorTransparent(this.frames[f].bi, alpha);
-                }
+
             }
 
         }

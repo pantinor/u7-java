@@ -188,4 +188,23 @@ public class ImageTransparency {
 
     }
 
+    public static boolean checkAllAdjacentsAreTransparent(int[][] data, int y, int x, int transparent) {
+        
+        if (y + 1 < data.length && data[y + 1][x] != transparent) {
+            return false;
+        }
+        if (y - 1 > 0 && data[y - 1][x] != transparent) {
+            return false;
+        }
+        if (x + 1 < data[y].length && data[y][x + 1] != transparent) {
+            return false;
+        }
+        if (x - 1 > 0 && data[y][x - 1] != transparent) {
+            return false;
+        }
+
+        return true;
+
+    }
+
 }
