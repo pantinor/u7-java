@@ -16,19 +16,23 @@ import javax.imageio.ImageIO;
 public class MapRender {
 
     private static List<Palette> palettes = new ArrayList<>();
+    private static List<Xform> xforms = new ArrayList<>();
+    private static final String GAMEDIR = "c://Users//panti/Desktop//ULTIMA7//STATIC//";
 
     public static void main(String[] args) throws Exception {
 
-        FileInputStream cis = new FileInputStream("c://Users//panti/Desktop//STATIC//U7CHUNKS");
-        FileInputStream mis = new FileInputStream("c://Users//panti/Desktop//STATIC//U7MAP");
-        FileInputStream sis = new FileInputStream("c://Users//panti/Desktop//STATIC//SHAPES.VGA");
-        FileInputStream pis = new FileInputStream("c://Users//panti/Desktop//STATIC//PALETTES.FLX");
-        FileInputStream tis = new FileInputStream("c://Users//panti/Desktop//STATIC//TFA.DAT");
+        FileInputStream cis = new FileInputStream(GAMEDIR + "U7CHUNKS");
+        FileInputStream mis = new FileInputStream(GAMEDIR + "U7MAP");
+        FileInputStream sis = new FileInputStream(GAMEDIR + "SHAPES.VGA");
+        FileInputStream pis = new FileInputStream(GAMEDIR + "PALETTES.FLX");
+        FileInputStream tis = new FileInputStream(GAMEDIR + "TFA.DAT");
+        FileInputStream xis = new FileInputStream(GAMEDIR + "XFORM.TBL");
 
         ByteBuffer cbb = ByteBuffer.wrap(IOUtils.toByteArray(cis)).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer mbb = ByteBuffer.wrap(IOUtils.toByteArray(mis)).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer sbb = ByteBuffer.wrap(IOUtils.toByteArray(sis)).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer pbb = ByteBuffer.wrap(IOUtils.toByteArray(pis)).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer xbb = ByteBuffer.wrap(IOUtils.toByteArray(xis)).order(ByteOrder.LITTLE_ENDIAN);
         byte[] tfa = IOUtils.toByteArray(tis);
 
         Region[][] regions = new Region[12][12];
@@ -78,26 +82,34 @@ public class MapRender {
                 }
 
                 getObjects(region, "U7IFIX", true);
-                getObjects(region, "U7IREG", false);
+                getObjects(region, "U7IREG", false);//these files do not exist until after game data is saved
 
             }
         }
 
-        pbb.position(0x54);
-        int numPals = read4(pbb);
-
-        pbb.position(0x80);
-        for (int i = 0; i < numPals; i++) {
-            int offset = read4(pbb);
-            int len = read4(pbb);
-            byte[] entry = new byte[len];
-            palettes.add(new Palette(i, offset, len, entry));
+        xbb.position(0x80);
+        for (int i = 0; i < 20; i++) {
+            int offset = read4(xbb);
+            int len = read4(xbb);
+            int pos = xbb.position();
+            Xform xform = new Xform(i);
+            xbb.position(offset);
+            xbb.get(xform.outputIndices);
+            xforms.add(xform);
+            xbb.position(pos);
         }
 
-        for (Palette p : palettes) {
-            pbb.position(p.offset);
-            pbb.get(p.data);
-            p.set();
+        pbb.position(0x80);
+        for (int i = 0; i < 8; i++) {
+            int offset = read4(pbb);
+            int len = read4(pbb);
+            int pos = pbb.position();
+            byte[] entry = new byte[len];
+            pbb.position(offset);
+            pbb.get(entry);
+            Palette p = new Palette(i, entry);
+            palettes.add(p);
+            pbb.position(pos);
         }
 
         sbb.position(0x54);
@@ -127,19 +139,19 @@ public class MapRender {
             sbb.position(rec.offset);
             sbb.get(rec.data);
             rec.set();
-            //System.out.println(rec);
+            System.out.println(rec);
         }
 
         TexturePacker.Settings settings = new TexturePacker.Settings();
         settings.minWidth = 8;
         settings.minHeight = 8;
-        settings.maxWidth = 512;
+        settings.maxWidth = 1024;
         settings.maxHeight = 2056;
         settings.paddingX = 0;
         settings.paddingY = 0;
         settings.fast = true;
         settings.pot = false;
-        settings.grid = true;
+        settings.grid = false;
         settings.edgePadding = false;
         settings.bleed = false;
         settings.debug = false;
@@ -160,8 +172,18 @@ public class MapRender {
                             for (int tilex = 0; tilex < 16; tilex++) {
                                 Shape shape = chunk.shapes[tiley][tilex];
                                 Record rec = records.get(shape.shapeIndex);
+
                                 try {
-                                    region.bi.getGraphics().drawImage(rec.frames[shape.frameIndex].bi, (16 * 8 * x) + (8 * tilex), (16 * 8 * y) + (8 * tiley), null);
+                                    if (!rec.isRawChunkBits()) {
+                                        Shape tmps = chunk.shapes[tiley][tilex == 0 ? tilex + 1 : tilex - 1];
+                                        Record tmprec = records.get(tmps.shapeIndex);
+                                        //HACK - draw a random square underneath it first (tile to left)
+                                        region.bi.getGraphics().drawImage(tmprec.frames[tmps.frameIndex].bi, (16 * 8 * x) + (8 * tilex), (16 * 8 * y) + (8 * tiley), null);
+                                    }
+
+                                    region.bi.getGraphics().drawImage(rec.frames[shape.frameIndex].bi,
+                                            (16 * 8 * x) + (8 * tilex) - rec.frames[shape.frameIndex].width + 8,
+                                            (16 * 8 * y) + (8 * tiley) - rec.frames[shape.frameIndex].height + 8, null);
                                 } catch (Exception e) {
                                     //ignore - must be a bug in the shapes vga for shape number 48
                                     //System.err.printf("drawing [%d,%d] [%d,%d] si [%d] fidx [%d] flen [%d]\n", yy, xx, y, x, shape.shapeIndex, shape.frameIndex, rec.frames.length);
@@ -173,14 +195,24 @@ public class MapRender {
                 for (int y = 0; y < 16; y++) {
                     for (int x = 0; x < 16; x++) {
                         Chunk chunk = region.chunks[y][x];
+
+                        if (yy == 0 && xx == 5 && y == 15 && x == 10) {
+                            int kk = 0;
+                        }
+
                         if (!chunk.objects.isEmpty()) {
                             for (int i = chunk.objects.size() - 1; i >= 0; i--) {
                                 ObjectEntry e = chunk.objects.get(i);
                                 Record rec = records.get(e.shapeIndex);
 
+                                //skip roofs etc above ground level
+                                if (e.tz > 1) {
+                                    continue;
+                                }
+
                                 region.bi.getGraphics().drawImage(rec.frames[e.frameIndex].bi,
-                                        (16 * 8 * x) + (8 * e.tx) - rec.frames[e.frameIndex].width + e.tx,
-                                        (16 * 8 * y) + (8 * e.ty) - rec.frames[e.frameIndex].height + e.ty, null);
+                                        (16 * 8 * x) + (8 * e.tx) - rec.frames[e.frameIndex].width + 8,
+                                        (16 * 8 * y) + (8 * e.ty) - rec.frames[e.frameIndex].height + 8, null);
                             }
                         }
                     }
@@ -372,7 +404,7 @@ public class MapRender {
                     }
                 }
             }
-            
+
             int transparent = 0;
 
             for (int f = 0; f < nframes; f++) {
@@ -394,6 +426,10 @@ public class MapRender {
                         if (!isRawChunkBits() && idx == transparent && ImageTransparency.checkAllAdjacentsAreTransparent(data, y, x, transparent)) {
                             rgb = 0;
                         }
+
+//                        if (!isRawChunkBits()) {
+//                            rgb = palettes.get(PALETTE_DAY).rgb(idx, 3);
+//                        }
                         this.frames[f].bi.setRGB(x, y, rgb);
                     }
                 }
@@ -452,30 +488,6 @@ public class MapRender {
 
     }
 
-    private static int read4(ByteBuffer bb) {
-        int ret = read4(bb, bb.position());
-        bb.getInt();
-        return ret;
-    }
-
-    private static int read4(ByteBuffer bb, int idx) {
-        return (bb.get(idx + 0) & 0xff) << 0
-                | (bb.get(idx + 1) & 0xff) << 8
-                | (bb.get(idx + 2) & 0xff) << 16
-                | (bb.get(idx + 3) & 0xff) << 24;
-    }
-
-    private static int read2(ByteBuffer bb) {
-        int ret = read2(bb, bb.position());
-        bb.getShort();
-        return ret;
-    }
-
-    private static int read2(ByteBuffer bb, int idx) {
-        return (bb.get(idx + 0) & 0xff) << 0
-                | (bb.get(idx + 1) & 0xff) << 8;
-    }
-
     public static int PALETTE_DAY = 0;
     public static int PALETTE_DAWN = 1;
     public static int PALETTE_NIGHT = 2;
@@ -492,42 +504,30 @@ public class MapRender {
     private static class Palette {
 
         int num;
-        int offset;
-        int len;
-        byte[] data;
-        ByteBuffer bb;
-        int[] palette;
+        byte[] data = new byte[768];
+        int[] palette = new int[768];
 
-        public Palette(int num, int offset, int len, byte[] data) {
+        public Palette(int num, byte[] data) {
             this.num = num;
-            this.offset = offset;
-            this.len = len;
-
             this.data = data;
 
-            this.bb = ByteBuffer.wrap(data);
-            this.bb.order(ByteOrder.LITTLE_ENDIAN);
-
-            this.palette = new int[len];
+            for (int i = 0; i < 256; i++) {
+                palette[i * 3] = data[i * 3] << 2;
+                palette[i * 3 + 1] = data[i * 3 + 1] << 2;
+                palette[i * 3 + 2] = data[i * 3 + 2] << 2;
+            }
         }
 
-        void set() {
-            if (bb.limit() == 768) {
-                for (int i = 0; i < 256; i++) {
-                    palette[i * 3] = bb.get() << 2;
-                    palette[i * 3 + 1] = bb.get() << 2;
-                    palette[i * 3 + 2] = bb.get() << 2;
-                }
-            } else if (bb.limit() == 1536) {
-                for (int i = 0; i < 256; i++) {
-                    palette[i * 3] = bb.get() << 2;
-                    bb.get();
-                    palette[i * 3 + 1] = bb.get() << 2;
-                    bb.get();
-                    palette[i * 3 + 2] = bb.get() << 2;
-                    bb.get();
-                }
-            }
+        int rgb(int idx, int xformIndex) {
+            Xform xf = xforms.get(xformIndex);
+            int ix = xf.outputIndices[idx] & 0xff;
+
+            int r = palette[3 * ix];
+            int g = palette[3 * ix + 1];
+            int b = palette[3 * ix + 2];
+
+            int rgb = 255 << 24 | (r << 16) | (g << 8) | (b << 0);
+            return rgb;
         }
 
         int rgb(int idx) {
@@ -542,19 +542,14 @@ public class MapRender {
 
     }
 
-    private static void packAtlas(int start, int end, String atlasName, List<Record> records, TexturePacker.Settings settings) {
-        TexturePacker tp = new TexturePacker(settings);
-        for (Record rec : records) {
-            if (rec.num < start || rec.num > end) {
-                continue;
-            }
-            System.out.printf("Packing images for %d\n", rec.num);
-            for (Frame f : rec.frames) {
-                String name = String.format("shape-%d_%d", rec.num, f.number);
-                tp.addImage(f.bi, name);
-            }
+    private static class Xform {
+
+        int num;
+        byte[] outputIndices = new byte[256];
+
+        public Xform(int num) {
+            this.num = num;
         }
-        tp.pack(new File("target/"), atlasName);
     }
 
     private static void getObjects(Region region, String prefix, boolean fixed) throws Exception {
@@ -562,11 +557,11 @@ public class MapRender {
         String chars = "0123456789abcdef";
         String fname = (prefix + chars.charAt(region.id / 16) + chars.charAt(region.id % 16)).toUpperCase();
 
-        if (Files.notExists(Paths.get("c://Users//panti/Desktop//STATIC//" + fname))) {
+        if (Files.notExists(Paths.get(GAMEDIR + fname))) {
             return;
         }
 
-        FileInputStream is = new FileInputStream("c://Users//panti/Desktop//STATIC//" + fname);
+        FileInputStream is = new FileInputStream(GAMEDIR + fname);
         ByteBuffer bb = ByteBuffer.wrap(IOUtils.toByteArray(is)).order(ByteOrder.LITTLE_ENDIAN);
 
         bb.position(0x54);
@@ -680,6 +675,45 @@ public class MapRender {
 
         }
 
+    }
+
+    private static int read4(ByteBuffer bb) {
+        int ret = read4(bb, bb.position());
+        bb.getInt();
+        return ret;
+    }
+
+    private static int read4(ByteBuffer bb, int idx) {
+        return (bb.get(idx + 0) & 0xff) << 0
+                | (bb.get(idx + 1) & 0xff) << 8
+                | (bb.get(idx + 2) & 0xff) << 16
+                | (bb.get(idx + 3) & 0xff) << 24;
+    }
+
+    private static int read2(ByteBuffer bb) {
+        int ret = read2(bb, bb.position());
+        bb.getShort();
+        return ret;
+    }
+
+    private static int read2(ByteBuffer bb, int idx) {
+        return (bb.get(idx + 0) & 0xff) << 0
+                | (bb.get(idx + 1) & 0xff) << 8;
+    }
+
+    private static void packAtlas(int start, int end, String atlasName, List<Record> records, TexturePacker.Settings settings) {
+        TexturePacker tp = new TexturePacker(settings);
+        for (Record rec : records) {
+            if (rec.num < start || rec.num > end) {
+                continue;
+            }
+            System.out.printf("Packing images for %d\n", rec.num);
+            for (Frame f : rec.frames) {
+                String name = String.format("shape-%d_%d", rec.num, f.number);
+                tp.addImage(f.bi, name);
+            }
+        }
+        tp.pack(new File("target/"), atlasName);
     }
 
 }
