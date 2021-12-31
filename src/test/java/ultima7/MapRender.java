@@ -17,16 +17,17 @@ public class MapRender {
 
     private static List<Palette> palettes = new ArrayList<>();
     private static List<Xform> xforms = new ArrayList<>();
-    private static final String GAMEDIR = "c://Users//panti/Desktop//ULTIMA7//STATIC//";
+    private static final String STATICDIR = "c://Users//panti/Desktop//ULTIMA7//STATIC//";
+    private static final String GAMEDATDIR = "c://Users//panti/Desktop//ULTIMA7//GAMEDAT//";
 
     public static void main(String[] args) throws Exception {
 
-        FileInputStream cis = new FileInputStream(GAMEDIR + "U7CHUNKS");
-        FileInputStream mis = new FileInputStream(GAMEDIR + "U7MAP");
-        FileInputStream sis = new FileInputStream(GAMEDIR + "SHAPES.VGA");
-        FileInputStream pis = new FileInputStream(GAMEDIR + "PALETTES.FLX");
-        FileInputStream tis = new FileInputStream(GAMEDIR + "TFA.DAT");
-        FileInputStream xis = new FileInputStream(GAMEDIR + "XFORM.TBL");
+        FileInputStream cis = new FileInputStream(STATICDIR + "U7CHUNKS");
+        FileInputStream mis = new FileInputStream(STATICDIR + "U7MAP");
+        FileInputStream sis = new FileInputStream(STATICDIR + "SHAPES.VGA");
+        FileInputStream pis = new FileInputStream(STATICDIR + "PALETTES.FLX");
+        FileInputStream tis = new FileInputStream(STATICDIR + "TFA.DAT");
+        FileInputStream xis = new FileInputStream(STATICDIR + "XFORM.TBL");
 
         ByteBuffer cbb = ByteBuffer.wrap(IOUtils.toByteArray(cis)).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer mbb = ByteBuffer.wrap(IOUtils.toByteArray(mis)).order(ByteOrder.LITTLE_ENDIAN);
@@ -81,8 +82,8 @@ public class MapRender {
                     }
                 }
 
-                getObjects(region, "U7IFIX", true);
-                getObjects(region, "U7IREG", false);//these files do not exist until after game data is saved
+                getIRegObjects(region, "U7IREG");//these files do not exist until after game data is saved
+                getFixedObjects(region, "U7IFIX");
 
             }
         }
@@ -139,7 +140,7 @@ public class MapRender {
             sbb.position(rec.offset);
             sbb.get(rec.data);
             rec.set();
-            System.out.println(rec);
+            //System.out.println(rec);
         }
 
         TexturePacker.Settings settings = new TexturePacker.Settings();
@@ -210,6 +211,12 @@ public class MapRender {
                                     continue;
                                 }
 
+                                if (e.frameIndex >= rec.frames.length) {
+                                    System.err.printf("error drawing object [%d,%d] [%d,%d] si [%d] fidx [%d] flen [%d]\n",
+                                            yy, xx, y, x, e.shapeIndex, e.frameIndex, rec.frames.length);
+                                    continue;
+                                }
+
                                 region.bi.getGraphics().drawImage(rec.frames[e.frameIndex].bi,
                                         (16 * 8 * x) + (8 * e.tx) - rec.frames[e.frameIndex].width + 8,
                                         (16 * 8 * y) + (8 * e.ty) - rec.frames[e.frameIndex].height + 8, null);
@@ -219,7 +226,7 @@ public class MapRender {
                 }
                 //break;
             }
-            //break;
+            break;
         }
 
         for (int yy = 0; yy < 12; yy++) {
@@ -228,7 +235,7 @@ public class MapRender {
                 ImageIO.write(region.bi, "PNG", new File("target/region-" + yy + "-" + xx + ".png"));
                 //break;
             }
-            //break;
+            break;
         }
 
     }
@@ -552,20 +559,20 @@ public class MapRender {
         }
     }
 
-    private static void getObjects(Region region, String prefix, boolean fixed) throws Exception {
+    private static void getFixedObjects(Region region, String prefix) throws Exception {
 
         String chars = "0123456789abcdef";
         String fname = (prefix + chars.charAt(region.id / 16) + chars.charAt(region.id % 16)).toUpperCase();
 
-        if (Files.notExists(Paths.get(GAMEDIR + fname))) {
-            return;
-        }
-
-        FileInputStream is = new FileInputStream(GAMEDIR + fname);
+        FileInputStream is = new FileInputStream((STATICDIR) + fname);
         ByteBuffer bb = ByteBuffer.wrap(IOUtils.toByteArray(is)).order(ByteOrder.LITTLE_ENDIAN);
 
         bb.position(0x54);
         int num = read4(bb);
+
+        if (num < 1) {
+            return;
+        }
 
         ObjectEntries[] entries = new ObjectEntries[num];
 
@@ -575,7 +582,7 @@ public class MapRender {
             int len = read4(bb);
             if (len > 0) {
                 byte[] data = new byte[len];
-                ObjectEntries obj = new ObjectEntries(i, offset, len, data, fixed);
+                ObjectEntries obj = new ObjectEntries(i, offset, len, data, true);
                 entries[i] = obj;
             }
         }
@@ -604,7 +611,63 @@ public class MapRender {
                     chunk.objects.addAll(obj.entries);
                 }
 
-                //System.out.printf("Region [%d] chunk [%d,%d] objects %d\n ", region.id, cy, cx, chunk.objects.size());
+                //System.out.printf("%s - Region [%d] chunk [%d,%d] objects %d\n ", (fixed ? "IFIX" : "IREG"), region.id, cy, cx, chunk.objects.size());
+            }
+        }
+
+    }
+
+    private static void getIRegObjects(Region region, String prefix) throws Exception {
+
+        String chars = "0123456789abcdef";
+        String fname = (prefix + chars.charAt(region.id / 16) + chars.charAt(region.id % 16)).toUpperCase();
+
+        if (Files.notExists(Paths.get(GAMEDATDIR + fname))) {
+            return;
+        }
+
+        FileInputStream is = new FileInputStream(GAMEDATDIR + fname);
+        ByteBuffer bb = ByteBuffer.wrap(IOUtils.toByteArray(is)).order(ByteOrder.LITTLE_ENDIAN);
+
+        //System.out.printf("%s - Region [%d] %s\n", fname, region.id, bb.toString());
+        while (bb.position() < bb.limit()) {
+
+            int len = bb.get() & 0xff;
+
+            if (len != 6 && len != 12) {
+                continue;
+            }
+
+            if (bb.position() + len >= bb.limit()) {
+                break;
+            }
+
+            byte b0 = bb.get();
+            byte b1 = bb.get();
+            byte b2 = bb.get();
+            byte b3 = bb.get();
+
+            int cx = (b0 >> 4) & 0xf;
+            int cy = (b1 >> 4) & 0xf;
+
+            Chunk chunk = region.chunks[cy][cx];
+
+            ObjectEntry e = new ObjectEntry();
+            e.tx = b0 & 0xf;
+            e.ty = b1 & 0xf;
+            e.shapeIndex = (b2 & 0xff) + 256 * (b3 & 3);
+            e.frameIndex = (b3 >> 2) & 0x1f;
+            e.fixed = false;
+
+            chunk.objects.add(e);
+
+            if (len == 6) {
+                bb.get();//todo
+            } else if (len == 12) {
+                bb.getInt();//todo
+                bb.get();//todo
+                bb.get();//todo
+                bb.get();//todo
             }
         }
 
@@ -659,17 +722,6 @@ public class MapRender {
                     e.fixed = true;
 
                     entries.add(e);
-                }
-            } else {
-                while (bb.position() < bb.limit()) {
-                    byte len = bb.get();
-                    if (len == 0 || len == 1) {
-
-                    } else if (len == 2) {
-
-                    } else {
-                        //todo
-                    }
                 }
             }
 
