@@ -1,0 +1,14 @@
+{
+com.badlogic.gdx.scenes.scene2d.ui.ImageButton$ImageButtonStyle: {
+    default: { imageUp:right-up, imageDown:right-down, imageOver:right-up, imageChecked:right-up, imageCheckedOver:right-up, imageDisabled:right-up },
+    plus: { imageUp:add-up, imageDown:add-down, imageOver:add-up, imageChecked:add-up, imageCheckedOver:add-up, imageDisabled:add-up },
+    minus: { imageUp:minus-up, imageDown:minus-down, imageOver:minus-up, imageChecked:minus-up, imageCheckedOver:minus-up, imageDisabled:minus-up },
+    right: { imageUp:right-up, imageDown:right-down, imageOver:right-up, imageChecked:right-up, imageCheckedOver:right-up, imageDisabled:right-up },
+    left: { imageUp:left-up, imageDown:left-down, imageOver:left-up, imageChecked:left-up, imageCheckedOver:left-up, imageDisabled:left-up },
+    clear: { imageUp:x-up, imageDown:x-down, imageOver:x-up, imageChecked:x-up, imageCheckedOver:x-up, imageDisabled:x-up },
+    sm-arr-left: { imageUp:left-arrow-up, imageDown:left-arrow-down, imageOver:left-arrow-up, imageChecked:left-arrow-up, imageCheckedOver:left-arrow-up, imageDisabled:left-arrow-up },
+    sm-arr-right: { imageUp:right-arrow-up, imageDown:right-arrow-down, imageOver:right-arrow-up, imageChecked:right-arrow-up, imageCheckedOver:right-arrow-up, imageDisabled:right-arrow-up },
+    inventory: { imageUp:inventory-up, imageDown:inventory-down, imageOver:inventory-up, imageChecked:inventory-up, imageCheckedOver:inventory-up, imageDisabled:inventory-up },
+    save: { imageUp:save-up, imageDown:save-down, imageOver:save-up, imageChecked:save-up, imageCheckedOver:save-up, imageDisabled:save-up },
+}
+}
