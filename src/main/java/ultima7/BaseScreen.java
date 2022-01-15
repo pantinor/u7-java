@@ -3,6 +3,8 @@ package ultima7;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -28,6 +30,7 @@ public abstract class BaseScreen implements Screen, InputProcessor {
 
     /**
      * translate map tile coords to world pixel coords
+     *
      * @param v
      * @param x
      * @param y
@@ -36,12 +39,13 @@ public abstract class BaseScreen implements Screen, InputProcessor {
 
     /**
      * get the map coords at the camera center
+     *
      * @param v
      */
     public abstract void setCurrentMapCoords(Vector3 v);
-    
+
     public abstract void log(String t);
-    
+
     public int currentRoomId() {
         return this.currentRoomId;
     }
@@ -56,7 +60,6 @@ public abstract class BaseScreen implements Screen, InputProcessor {
     }
 
     public abstract void finishTurn(int currentX, int currentY);
-
 
     @Override
     public void hide() {
@@ -122,6 +125,16 @@ public abstract class BaseScreen implements Screen, InputProcessor {
 
     @Override
     public void resume() {
+    }
+
+    public void drawDebugGrid(Texture t, Batch batch, float dim) {
+        for (int y = 0; y < 768; y += dim) {
+            batch.draw(t, 32, y + 80, 768, 1);
+        }
+
+        for (int x = 0; x < 768; x += dim) {
+            batch.draw(t, 32 + x, 80, 1, 768);
+        }
     }
 
 }

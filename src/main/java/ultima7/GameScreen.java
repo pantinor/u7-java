@@ -3,8 +3,10 @@ package ultima7;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input.Keys;
 import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector3;
@@ -14,7 +16,10 @@ import com.badlogic.gdx.scenes.scene2d.actions.SequenceAction;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import ultima7.Constants.Direction;
+import static ultima7.Constants.MAP_TILE_HEIGHT;
 import static ultima7.Constants.TILE_DIM;
+import static ultima7.Ultima7.MAP_VIEWPORT_DIM;
+import static ultima7.Ultima7.SCREEN_HEIGHT;
 
 public class GameScreen extends BaseScreen {
 
@@ -23,8 +28,12 @@ public class GameScreen extends BaseScreen {
     private final Viewport mapViewPort;
     private final Stage mapStage;
 
-    public GameScreen() {
+    private final float unitScale = 2.0f;
 
+    Texture debugGridTexture = Constants.getTexture(Color.YELLOW, 1, 1);
+    Texture debugPointerTexture = Constants.getTexture(Color.RED, TILE_DIM * 2, TILE_DIM * 2);
+
+    public GameScreen() {
         batch = new SpriteBatch();
 
         stage = new Stage(viewport);
@@ -35,15 +44,15 @@ public class GameScreen extends BaseScreen {
 
         mapStage = new Stage(mapViewPort);
 
-        renderer = new U7MapRenderer(Constants.REGIONS, 1.0f);
+        renderer = new U7MapRenderer(Constants.REGIONS, unitScale);
 
         SequenceAction seq1 = Actions.action(SequenceAction.class);
         seq1.addAction(Actions.delay(5f));
         seq1.addAction(Actions.run(new GameTimer()));
         stage.addAction(Actions.forever(seq1));
 
-        setMapPixelCoords(this.newMapPixelCoords, 232, 226);//1856, 1808
-        //setMapPixelCoords(this.newMapPixelCoords, 200, 434);//1600, 3472
+        setMapPixelCoords(this.newMapPixelCoords, 334, 352);//2672, 2816
+        //setMapPixelCoords(this.newMapPixelCoords, 550, 674);//4400, 5392
 
     }
 
@@ -58,15 +67,16 @@ public class GameScreen extends BaseScreen {
 
     @Override
     public void setMapPixelCoords(Vector3 v, int tilex, int tiley) {
-        v.set(tilex * TILE_DIM, Constants.MAP_HEIGHT - tiley * TILE_DIM, 0);
+        v.set(tilex * TILE_DIM * unitScale, MAP_TILE_HEIGHT * unitScale - tiley * TILE_DIM * unitScale, 0);
     }
 
     @Override
     public void setCurrentMapCoords(Vector3 v) {
-        float dx = TILE_DIM * 32;
-        float dy = TILE_DIM * 2308;
-        Vector3 tmp = camera.unproject(new Vector3(dx, dy, 0), 0, 0, Ultima7.MAP_VIEWPORT_DIM, Ultima7.MAP_VIEWPORT_DIM);
-        v.set(Math.round(tmp.x / TILE_DIM), ((Constants.MAP_HEIGHT - Math.round(tmp.y) - TILE_DIM) / TILE_DIM), 0);
+        float dx = TILE_DIM * 40;
+        float dy = TILE_DIM * 4906;
+
+        Vector3 tmp = camera.unproject(new Vector3(dx, dy, 0), 32, 80, MAP_VIEWPORT_DIM, MAP_VIEWPORT_DIM);
+        v.set(Math.round(tmp.x / TILE_DIM), (MAP_TILE_HEIGHT - Math.round(tmp.y) - TILE_DIM) / TILE_DIM, 0);
     }
 
     @Override
@@ -88,8 +98,8 @@ public class GameScreen extends BaseScreen {
         }
 
         camera.position.set(
-                newMapPixelCoords.x + TILE_DIM * 16,
-                newMapPixelCoords.y + TILE_DIM * 2688,
+                newMapPixelCoords.x + 128,
+                newMapPixelCoords.y + 43000,
                 0);
 
         camera.update();
@@ -97,19 +107,21 @@ public class GameScreen extends BaseScreen {
         renderer.setView(camera.combined,
                 camera.position.x - TILE_DIM * 64,
                 camera.position.y - TILE_DIM * 48,
-                Ultima7.MAP_VIEWPORT_DIM - TILE_DIM,
-                Ultima7.MAP_VIEWPORT_DIM - TILE_DIM);
+                MAP_VIEWPORT_DIM - TILE_DIM,
+                MAP_VIEWPORT_DIM - TILE_DIM);
 
         renderer.render();
 
         batch.begin();
 
         batch.draw(Ultima7.backGround, 0, 0);
-        batch.draw(Constants.RECORDS.get(64).frames[0].texture, TILE_DIM * 52, TILE_DIM * 56, TILE_DIM, TILE_DIM);
+
+        batch.draw(debugPointerTexture, TILE_DIM * 52, TILE_DIM * 56);
+        //drawDebugGrid(debugGridTexture, batch, TILE_DIM * unitScale);
 
         Vector3 v = new Vector3();
         setCurrentMapCoords(v);
-        Ultima7.font.draw(batch, String.format("[%.0f, %.0f]", v.x, v.y), 200, Ultima7.SCREEN_HEIGHT - 24);
+        Ultima7.font.draw(batch, String.format("[%.0f, %.0f]", v.x / unitScale, v.y / unitScale), 200, SCREEN_HEIGHT - 24);
 
         batch.end();
 
@@ -131,28 +143,28 @@ public class GameScreen extends BaseScreen {
             if (!preMove(v, Direction.NORTH)) {
                 return false;
             }
-            newMapPixelCoords.y = newMapPixelCoords.y + TILE_DIM;
+            newMapPixelCoords.y = newMapPixelCoords.y + TILE_DIM * this.unitScale * 1;
             v.y -= 1;
         } else if (keycode == Keys.DOWN) {
 
             if (!preMove(v, Direction.SOUTH)) {
                 return false;
             }
-            newMapPixelCoords.y = newMapPixelCoords.y - TILE_DIM;
+            newMapPixelCoords.y = newMapPixelCoords.y - TILE_DIM * this.unitScale * 1;
             v.y += 1;
         } else if (keycode == Keys.RIGHT) {
 
             if (!preMove(v, Direction.EAST)) {
                 return false;
             }
-            newMapPixelCoords.x = newMapPixelCoords.x + TILE_DIM;
+            newMapPixelCoords.x = newMapPixelCoords.x + TILE_DIM * this.unitScale * 1;
             v.x += 1;
         } else if (keycode == Keys.LEFT) {
 
             if (!preMove(v, Direction.WEST)) {
                 return false;
             }
-            newMapPixelCoords.x = newMapPixelCoords.x - TILE_DIM;
+            newMapPixelCoords.x = newMapPixelCoords.x - TILE_DIM * this.unitScale * 1;
             v.x -= 1;
         } else if (keycode == Keys.U) {
 

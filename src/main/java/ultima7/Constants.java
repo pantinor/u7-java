@@ -1,5 +1,6 @@
 package ultima7;
 
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Pixmap.Format;
 import com.badlogic.gdx.graphics.Texture;
@@ -22,8 +23,8 @@ public class Constants {
     public static final String GAMEDATDIR = "c://Users//panti/Desktop//ULTIMA7//GAMEDAT//";
 
     public static final int TILE_DIM = 8;
-    public static final int MAP_WIDTH = (2048 * 12) / TILE_DIM;
-    public static final int MAP_HEIGHT = (2048 * 12) / TILE_DIM;
+    public static final int MAP_TILE_WIDTH = (2048 * 12) / TILE_DIM;
+    public static final int MAP_TILE_HEIGHT = (2048 * 12) / TILE_DIM;
 
     public static final Region[][] REGIONS = new Region[12][12];
     public static final List<Record> RECORDS = new ArrayList<>();
@@ -738,6 +739,15 @@ public class Constants {
 
         return true;
 
+    }
+
+    public static Texture getTexture(Color color, int w, int h) {
+        Pixmap red = new Pixmap(w, h, Format.RGBA8888);
+        red.setColor(color);
+        red.fillRectangle(0, 0, w, h);
+        Texture t = new Texture(red);
+        red.dispose();
+        return t;
     }
 
 }

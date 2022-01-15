@@ -4,26 +4,6 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Batch;
-import static com.badlogic.gdx.graphics.g2d.Batch.C1;
-import static com.badlogic.gdx.graphics.g2d.Batch.C2;
-import static com.badlogic.gdx.graphics.g2d.Batch.C3;
-import static com.badlogic.gdx.graphics.g2d.Batch.C4;
-import static com.badlogic.gdx.graphics.g2d.Batch.U1;
-import static com.badlogic.gdx.graphics.g2d.Batch.U2;
-import static com.badlogic.gdx.graphics.g2d.Batch.U3;
-import static com.badlogic.gdx.graphics.g2d.Batch.U4;
-import static com.badlogic.gdx.graphics.g2d.Batch.V1;
-import static com.badlogic.gdx.graphics.g2d.Batch.V2;
-import static com.badlogic.gdx.graphics.g2d.Batch.V3;
-import static com.badlogic.gdx.graphics.g2d.Batch.V4;
-import static com.badlogic.gdx.graphics.g2d.Batch.X1;
-import static com.badlogic.gdx.graphics.g2d.Batch.X2;
-import static com.badlogic.gdx.graphics.g2d.Batch.X3;
-import static com.badlogic.gdx.graphics.g2d.Batch.X4;
-import static com.badlogic.gdx.graphics.g2d.Batch.Y1;
-import static com.badlogic.gdx.graphics.g2d.Batch.Y2;
-import static com.badlogic.gdx.graphics.g2d.Batch.Y3;
-import static com.badlogic.gdx.graphics.g2d.Batch.Y4;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.maps.MapRenderer;
@@ -33,8 +13,8 @@ import com.badlogic.gdx.utils.Disposable;
 import java.util.ArrayList;
 import java.util.List;
 import ultima7.Constants.Chunk;
-import static ultima7.Constants.MAP_HEIGHT;
-import static ultima7.Constants.MAP_WIDTH;
+import static ultima7.Constants.MAP_TILE_HEIGHT;
+import static ultima7.Constants.MAP_TILE_WIDTH;
 import ultima7.Constants.ObjectEntry;
 import static ultima7.Constants.RECORDS;
 import ultima7.Constants.Record;
@@ -44,41 +24,21 @@ import static ultima7.Constants.TILE_DIM;
 
 public class U7MapRenderer implements MapRenderer, Disposable {
 
-    static protected final int NUM_VERTICES = 20;
-
-    protected Region[][] map;
-
-    protected float unitScale;
     private float stateTime = 0;
 
-    protected Batch batch;
+    private final Region[][] map;
+    private  float unitScale;
+    private final Batch batch;
+    private final Rectangle viewBounds;
 
-    protected Rectangle viewBounds;
-    protected Rectangle imageBounds = new Rectangle();
-
-    protected boolean ownsBatch;
-
-    protected float vertices[] = new float[NUM_VERTICES];
-    private final List<Chunk> renderingChunks = new ArrayList<>(36);
+    private final List<Chunk> renderingChunks = new ArrayList<>();
 
     public Region[][] getMap() {
         return map;
     }
 
-    public float getUnitScale() {
-        return unitScale;
-    }
-
     public Batch getBatch() {
         return batch;
-    }
-
-    public Rectangle getViewBounds() {
-        return viewBounds;
-    }
-
-    public U7MapRenderer(Region[][] map) {
-        this(map, 1.0f);
     }
 
     public U7MapRenderer(Region[][] map, float unitScale) {
@@ -86,7 +46,6 @@ public class U7MapRenderer implements MapRenderer, Disposable {
         this.unitScale = unitScale;
         this.viewBounds = new Rectangle();
         this.batch = new SpriteBatch();
-        this.ownsBatch = true;
     }
 
     @Override
@@ -114,8 +73,8 @@ public class U7MapRenderer implements MapRenderer, Disposable {
         final Color batchColor = batch.getColor();
         final float color = Color.toFloatBits(batchColor.r, batchColor.g, batchColor.b, batchColor.a * 1);
 
-        int layerWidth = MAP_WIDTH;
-        int layerHeight = MAP_HEIGHT;
+        int layerWidth = MAP_TILE_WIDTH;
+        int layerHeight = MAP_TILE_HEIGHT;
 
         int layerTileWidth = (int) (TILE_DIM * unitScale);
         int layerTileHeight = (int) (TILE_DIM * unitScale);
@@ -158,7 +117,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                     continue;
                 }
 
-                batch.draw(tr.getTexture(), x, y);
+                batch.draw(tr.getTexture(), x, y, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
 
                 x += layerTileWidth;
             }
@@ -197,7 +156,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                 float tx = x - tr.getRegionWidth() + TILE_DIM;
                 float ty = y;
 
-                batch.draw(tr.getTexture(), tx, ty);
+                batch.draw(tr.getTexture(), tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
 
                 x += layerTileWidth;
             }
@@ -221,12 +180,10 @@ public class U7MapRenderer implements MapRenderer, Disposable {
 
                     TextureRegion tr = rec.frames[e.frameIndex].texture;
 
-                    int lft = 4 * e.tz;
+                    float rx = (chunk.sx * 2048) + (16 * TILE_DIM * chunk.cx) + (TILE_DIM * e.tx);
+                    float ry = (chunk.sy * 2048) + (16 * TILE_DIM * chunk.cy) + (TILE_DIM * e.ty);
 
-                    float rx = (chunk.sx * 2048) + (16 * TILE_DIM * chunk.cx) + (TILE_DIM * e.tx) - lft - 1;
-                    float ry = (chunk.sy * 2048) + (16 * TILE_DIM * chunk.cy) + (TILE_DIM * e.ty) - lft - 1;
-
-                    batch.draw(tr, rx, 2048 * 12 - ry);
+                    batch.draw(tr, rx, 2048 * 12 - ry, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
                 }
             }
         }
@@ -238,9 +195,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
 
     @Override
     public void render(int[] layers) {
-        beginRender();
 
-        endRender();
     }
 
     protected void beginRender() {
@@ -253,9 +208,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
 
     @Override
     public void dispose() {
-        if (ownsBatch) {
-            batch.dispose();
-        }
+        batch.dispose();
     }
 
 }
