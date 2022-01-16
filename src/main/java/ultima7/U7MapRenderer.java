@@ -27,7 +27,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
     private float stateTime = 0;
 
     private final Region[][] map;
-    private  float unitScale;
+    private float unitScale;
     private final Batch batch;
     private final Rectangle viewBounds;
 
@@ -127,6 +127,8 @@ public class U7MapRenderer implements MapRenderer, Disposable {
         y = row2 * layerTileHeight;
         startX = col1 * layerTileWidth;
 
+        float dim = TILE_DIM * unitScale;
+
         for (int row = row2; row >= row1; row--) {
 
             float x = startX;
@@ -153,7 +155,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                     continue;
                 }
 
-                float tx = x - tr.getRegionWidth() + TILE_DIM;
+                float tx = x - tr.getRegionWidth() * unitScale + dim;
                 float ty = y;
 
                 batch.draw(tr.getTexture(), tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
@@ -179,11 +181,24 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                     }
 
                     TextureRegion tr = rec.frames[e.frameIndex].texture;
+                    
+                    int ex = e.tx;
+                    int ey = e.ty;
+                    
+                    float lft = (dim * e.tz) / 2;
 
-                    float rx = (chunk.sx * 2048) + (16 * TILE_DIM * chunk.cx) + (TILE_DIM * e.tx);
-                    float ry = (chunk.sy * 2048) + (16 * TILE_DIM * chunk.cy) + (TILE_DIM * e.ty);
+                    ex += 1;
+                    ey += 1;
+                    
+                    float rx = (chunk.sx * 2048 * unitScale) + (16 * dim * chunk.cx) + (dim * ex - 1 - lft);
+                    float ry = (chunk.sy * 2048 * unitScale) + (16 * dim * chunk.cy) + (dim * ey - 1 - lft);
+                    
+                    rx -= tr.getRegionWidth() * unitScale;
 
-                    batch.draw(tr, rx, 2048 * 12 - ry, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
+                    batch.draw(tr, rx, 
+                            2048 * unitScale * 12 - ry,
+                            tr.getRegionWidth() * unitScale, 
+                            tr.getRegionHeight() * unitScale);
                 }
             }
         }
