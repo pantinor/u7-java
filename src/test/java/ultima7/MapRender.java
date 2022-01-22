@@ -49,7 +49,7 @@ public class MapRender {
                 }
             }
         }
-        
+
         for (int yy = 0; yy < 12; yy++) {
             for (int xx = 0; xx < 12; xx++) {
 
@@ -142,7 +142,7 @@ public class MapRender {
             rec.set();
             System.out.println(rec);
         }
-        
+
         if (true) {
             return;
         }
@@ -165,8 +165,11 @@ public class MapRender {
 //        packAtlas(0, 149, "base-tiles", records, settings);
 //        packAtlas(150, 300, "shape-tiles-1", records, settings);
 //        packAtlas(301, 600, "shape-tiles-2", records, settings);
-//        packAtlas(601, 900, "shape-tiles-3", records, settings);
+        packAtlas(700, 730, "shape-tiles-3", records, settings);
 //        packAtlas(900, 1024, "shape-tiles-4", records, settings);
+        if (true) {
+            return;
+        }
 
         BufferedImage mapImage = new BufferedImage(2048 * 6, 2048 * 6, BufferedImage.TYPE_INT_ARGB);
 
@@ -356,11 +359,11 @@ public class MapRender {
 
         @Override
         public String toString() {
-            return String.format("Record %d offset [%d] len [%d] %s shapeSize [%d] offset count [%d] frames [%s] hgt [%d]",
-                    this.num, this.offset, this.len, isRawChunkBits() ? "RAW" : "SHP", shapeSize(), offsetCount(), frames != null ? frames.length : this.len / 8 * 8, dims[2]);
+            //return String.format("Record %d offset [%d] len [%d] %s shapeSize [%d] offset count [%d] frames [%s] hgt [%d]",
+            //        this.num, this.offset, this.len, isRawChunkBits() ? "RAW" : "SHP", shapeSize(), offsetCount(), frames != null ? frames.length : this.len / 8 * 8, dims[2]);
 
-            //return String.format("Record %d [%s] isTransparent [%s] isTranslucent [%s] isSolid [%s] is Water [%s] isDoor [%s] isLightSource [%s]",
-            //        this.num, isRawChunkBits() ? "RAW" : "SHP", isTransparent(), isTranslucent(), isSolid(), isWater(), isDoor(), isLightSource());
+            return String.format("Record %d [%s] isField [%s] isAnimated [%s] isSolid [%s] is Water [%s] isDoor [%s] isLightSource [%s] frames[%d]",
+                    this.num, isRawChunkBits() ? "RAW" : "SHP", isField(), isAnimated(), isSolid(), isWater(), isDoor(), isLightSource(), frames != null ? frames.length : this.len / 8 * 8);
         }
 
         void set() {

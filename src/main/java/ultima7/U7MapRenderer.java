@@ -25,13 +25,20 @@ import static ultima7.Constants.TILE_DIM;
 public class U7MapRenderer implements MapRenderer, Disposable {
 
     private float stateTime = 0;
-
     private final Region[][] map;
-    private float unitScale;
+    private final float unitScale;
+    private final float dim;
     private final Batch batch;
     private final Rectangle viewBounds;
-
     private final List<Chunk> renderingChunks = new ArrayList<>();
+
+    public U7MapRenderer(Region[][] map, float unitScale) {
+        this.map = map;
+        this.unitScale = unitScale;
+        this.dim = TILE_DIM * unitScale;
+        this.viewBounds = new Rectangle();
+        this.batch = new SpriteBatch();
+    }
 
     public Region[][] getMap() {
         return map;
@@ -39,13 +46,6 @@ public class U7MapRenderer implements MapRenderer, Disposable {
 
     public Batch getBatch() {
         return batch;
-    }
-
-    public U7MapRenderer(Region[][] map, float unitScale) {
-        this.map = map;
-        this.unitScale = unitScale;
-        this.viewBounds = new Rectangle();
-        this.batch = new SpriteBatch();
     }
 
     @Override
@@ -66,146 +66,162 @@ public class U7MapRenderer implements MapRenderer, Disposable {
 
     @Override
     public void render() {
-        beginRender();
+        try {
+            beginRender();
 
-        this.stateTime += Gdx.graphics.getDeltaTime() / 4;
+            this.stateTime += Gdx.graphics.getDeltaTime() / 4;
 
-        final Color batchColor = batch.getColor();
-        final float color = Color.toFloatBits(batchColor.r, batchColor.g, batchColor.b, batchColor.a * 1);
+            final Color batchColor = batch.getColor();
+            final float color = Color.toFloatBits(batchColor.r, batchColor.g, batchColor.b, batchColor.a * 1);
 
-        int layerWidth = MAP_TILE_WIDTH;
-        int layerHeight = MAP_TILE_HEIGHT;
+            int layerWidth = MAP_TILE_WIDTH;
+            int layerHeight = MAP_TILE_HEIGHT;
 
-        int layerTileWidth = (int) (TILE_DIM * unitScale);
-        int layerTileHeight = (int) (TILE_DIM * unitScale);
+            int layerTileWidth = (int) (TILE_DIM * unitScale);
+            int layerTileHeight = (int) (TILE_DIM * unitScale);
 
-        int col1 = Math.max(0, (int) (viewBounds.x / layerTileWidth));
-        int col2 = Math.min(layerWidth, (int) ((viewBounds.x + viewBounds.width + layerTileWidth) / layerTileWidth));
-        int row1 = Math.max(0, (int) (viewBounds.y / layerTileHeight));
-        int row2 = Math.min(layerHeight, (int) ((viewBounds.y + viewBounds.height + layerTileHeight) / layerTileHeight));
+            int col1 = Math.max(0, (int) (viewBounds.x / layerTileWidth));
+            int col2 = Math.min(layerWidth, (int) ((viewBounds.x + viewBounds.width + layerTileWidth) / layerTileWidth));
+            int row1 = Math.max(0, (int) (viewBounds.y / layerTileHeight));
+            int row2 = Math.min(layerHeight, (int) ((viewBounds.y + viewBounds.height + layerTileHeight) / layerTileHeight));
 
-        float y = row2 * layerTileHeight;
-        float startX = col1 * layerTileWidth;
+            float y = row2 * layerTileHeight;
+            float startX = col1 * layerTileWidth;
 
-        for (int row = row2; row >= row1; row--) {
+            for (int row = row2; row >= row1; row--) {
 
-            float x = startX;
-            for (int col = col1; col < col2; col++) {
+                float x = startX;
+                for (int col = col1; col < col2; col++) {
 
-                int sx = col / 256;
-                int sy = row / 256;
+                    int sx = col / 256;
+                    int sy = row / 256;
 
-                int scx = (col - sx * 256) / 16;
-                int scy = (row - sy * 256) / 16;
+                    int scx = (col - sx * 256) / 16;
+                    int scy = (row - sy * 256) / 16;
 
-                int cx = (col - sx * 256) - (scx * 16);
-                int cy = (row - sy * 256) - (scy * 16);
+                    int cx = (col - sx * 256) - (scx * 16);
+                    int cy = (row - sy * 256) - (scy * 16);
 
-                Region region = map[11 - sy][sx];
-                Chunk chunk = region.chunks[15 - scy][scx];
-                Shape shape = chunk.shapes[15 - cy][cx];
-                Record rec = RECORDS.get(shape.shapeIndex);
+                    Region region = map[11 - sy][sx];
+                    Chunk chunk = region.chunks[15 - scy][scx];
+                    Shape shape = chunk.shapes[15 - cy][cx];
+                    Record rec = RECORDS.get(shape.shapeIndex);
 
-                if (!renderingChunks.contains(chunk)) {
-                    renderingChunks.add(chunk);
-                }
+                    if (!renderingChunks.contains(chunk)) {
+                        renderingChunks.add(chunk);
+                    }
 
-                TextureRegion tr = rec.frames[shape.frameIndex].texture;
+                    TextureRegion tr = rec.frames[shape.frameIndex].texture;
 
-                if (tr.getRegionWidth() != 8 && tr.getRegionHeight() != 8) {
-                    x += layerTileWidth;
-                    continue;
-                }
-
-                batch.draw(tr.getTexture(), x, y, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
-
-                x += layerTileWidth;
-            }
-            y -= layerTileHeight;
-        }
-
-        y = row2 * layerTileHeight;
-        startX = col1 * layerTileWidth;
-
-        float dim = TILE_DIM * unitScale;
-
-        for (int row = row2; row >= row1; row--) {
-
-            float x = startX;
-            for (int col = col1; col < col2; col++) {
-
-                int sx = col / 256;
-                int sy = row / 256;
-
-                int scx = (col - sx * 256) / 16;
-                int scy = (row - sy * 256) / 16;
-
-                int cx = (col - sx * 256) - (scx * 16);
-                int cy = (row - sy * 256) - (scy * 16);
-
-                Region region = map[11 - sy][sx];
-                Chunk chunk = region.chunks[15 - scy][scx];
-                Shape shape = chunk.shapes[15 - cy][cx];
-                Record rec = RECORDS.get(shape.shapeIndex);
-
-                TextureRegion tr = rec.frames[shape.frameIndex].texture;
-
-                if (rec.isRawChunkBits()) {
-                    x += layerTileWidth;
-                    continue;
-                }
-
-                float tx = x - tr.getRegionWidth() * unitScale + dim;
-                float ty = y;
-
-                batch.draw(tr.getTexture(), tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
-
-                x += layerTileWidth;
-            }
-            y -= layerTileHeight;
-        }
-
-        for (Chunk chunk : renderingChunks) {
-            if (!chunk.objects.isEmpty()) {
-                for (int i = chunk.objects.size() - 1; i >= 0; i--) {
-                    ObjectEntry e = chunk.objects.get(i);
-                    Record rec = RECORDS.get(e.shapeIndex);
-
-                    //skip roofs etc above ground level
-                    if (e.tz > 1) {
+                    if (tr.getRegionWidth() != 8 && tr.getRegionHeight() != 8) {
+                        x += layerTileWidth;
                         continue;
                     }
 
-                    if (e.frameIndex >= rec.frames.length) {
+                    batch.draw(tr.getTexture(), x, y, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
+
+                    x += layerTileWidth;
+                }
+                y -= layerTileHeight;
+            }
+
+            y = row2 * layerTileHeight;
+            startX = col1 * layerTileWidth;
+
+            for (int row = row2; row >= row1; row--) {
+
+                float x = startX;
+                for (int col = col1; col < col2; col++) {
+
+                    int sx = col / 256;
+                    int sy = row / 256;
+
+                    int scx = (col - sx * 256) / 16;
+                    int scy = (row - sy * 256) / 16;
+
+                    int cx = (col - sx * 256) - (scx * 16);
+                    int cy = (row - sy * 256) - (scy * 16);
+
+                    Region region = map[11 - sy][sx];
+                    Chunk chunk = region.chunks[15 - scy][scx];
+                    Shape shape = chunk.shapes[15 - cy][cx];
+                    Record rec = RECORDS.get(shape.shapeIndex);
+
+                    TextureRegion tr = rec.frames[shape.frameIndex].texture;
+
+                    if (rec.isRawChunkBits()) {
+                        x += layerTileWidth;
                         continue;
                     }
 
-                    TextureRegion tr = rec.frames[e.frameIndex].texture;
-                    
-                    int ex = e.tx;
-                    int ey = e.ty;
-                    
-                    float lft = (dim * e.tz) / 2;
+                    float tx = x - tr.getRegionWidth() * unitScale + dim;
+                    float ty = y;
 
-                    ex += 1;
-                    ey += 1;
-                    
-                    float rx = (chunk.sx * 2048 * unitScale) + (16 * dim * chunk.cx) + (dim * ex - 1 - lft);
-                    float ry = (chunk.sy * 2048 * unitScale) + (16 * dim * chunk.cy) + (dim * ey - 1 - lft);
-                    
-                    rx -= tr.getRegionWidth() * unitScale;
+                    batch.draw(tr.getTexture(), tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
 
-                    batch.draw(tr, rx, 
-                            2048 * unitScale * 12 - ry,
-                            tr.getRegionWidth() * unitScale, 
-                            tr.getRegionHeight() * unitScale);
+                    x += layerTileWidth;
+                }
+                y -= layerTileHeight;
+            }
+
+            for (Chunk chunk : renderingChunks) {
+                if (!chunk.objects.isEmpty()) {
+                    for (int i = chunk.objects.size() - 1; i >= 0; i--) {
+                        ObjectEntry e = chunk.objects.get(i);
+                        drawObjectWithDependencies(chunk, e);
+                    }
                 }
             }
+
+        } finally {
+            renderingChunks.clear();
+            endRender();
         }
 
-        renderingChunks.clear();
+    }
 
-        endRender();
+    private void drawObjectWithDependencies(Chunk chunk, ObjectEntry e) {
+        for (ObjectEntry dep : e.dependencies) {
+            drawObject(chunk, dep);
+        }
+        drawObject(chunk, e);
+    }
+
+    private void drawObject(Chunk chunk, ObjectEntry e) {
+
+        Record rec = RECORDS.get(e.shapeIndex);
+        if (e.frameIndex >= rec.frames.length) {
+            return;
+        }
+
+        if (rec.occludes) {
+            return;
+        }
+
+        if (rec.getShapeClass() == Shapes.quality) {
+            //return;
+        }
+
+        if (rec.getShapeClass() == Shapes.hatchable) {
+            //return;
+        }
+
+        TextureRegion tr = rec.frames[e.frameIndex].texture;
+
+        int ex = e.tx;
+        int ey = e.ty;
+
+        float lft = (dim * e.tz) / 2;
+
+        ex += 1;
+        ey += 1;
+
+        float rx = (chunk.sx * 2048 * unitScale) + (16 * dim * chunk.cx) + (dim * ex - 1 - lft);
+        float ry = (chunk.sy * 2048 * unitScale) + (16 * dim * chunk.cy) + (dim * ey - 1 - lft);
+
+        rx -= tr.getRegionWidth() * unitScale;
+
+        batch.draw(tr, rx, 2048 * unitScale * 12 - ry, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
     }
 
     @Override

@@ -15,8 +15,10 @@ import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.scenes.scene2d.actions.SequenceAction;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import ultima7.Constants.Chunk;
 import ultima7.Constants.Direction;
 import static ultima7.Constants.MAP_TILE_HEIGHT;
+import static ultima7.Constants.REGIONS;
 import static ultima7.Constants.TILE_DIM;
 import static ultima7.Ultima7.MAP_VIEWPORT_DIM;
 import static ultima7.Ultima7.SCREEN_HEIGHT;
@@ -32,6 +34,8 @@ public class GameScreen extends BaseScreen {
 
     Texture debugGridTexture = Constants.getTexture(Color.YELLOW, 1, 1);
     Texture debugPointerTexture = Constants.getTexture(Color.RED, TILE_DIM * 2, TILE_DIM * 2);
+
+    private Direction movingDirection = null;
 
     public GameScreen() {
         batch = new SpriteBatch();
@@ -51,8 +55,14 @@ public class GameScreen extends BaseScreen {
         seq1.addAction(Actions.run(new GameTimer()));
         stage.addAction(Actions.forever(seq1));
 
-        setMapPixelCoords(this.newMapPixelCoords, 334, 352);//2672, 2816
-        //setMapPixelCoords(this.newMapPixelCoords, 550, 674);//4400, 5392
+        SequenceAction seq2 = Actions.action(SequenceAction.class);
+        seq2.addAction(Actions.delay(.1f));
+        seq2.addAction(Actions.run(new AvatarMovementTimer()));
+        stage.addAction(Actions.forever(seq2));
+
+        setMapPixelCoords(this.newMapPixelCoords, 1070, 2214);
+        //setMapPixelCoords(this.newMapPixelCoords, 334, 352);//2672, 2816
+        //setMapPixelCoords(this.newMapPixelCoords, 239, 241);//4400, 5392
 
     }
 
@@ -77,6 +87,8 @@ public class GameScreen extends BaseScreen {
 
         Vector3 tmp = camera.unproject(new Vector3(dx, dy, 0), 32, 80, MAP_VIEWPORT_DIM, MAP_VIEWPORT_DIM);
         v.set(Math.round(tmp.x / TILE_DIM), (MAP_TILE_HEIGHT - Math.round(tmp.y) - TILE_DIM) / TILE_DIM, 0);
+
+        v.set(v.x / unitScale, v.y / unitScale, 0);
     }
 
     @Override
@@ -117,11 +129,18 @@ public class GameScreen extends BaseScreen {
         batch.draw(Ultima7.backGround, 0, 0);
 
         batch.draw(debugPointerTexture, TILE_DIM * 52, TILE_DIM * 56);
-        //drawDebugGrid(debugGridTexture, batch, TILE_DIM * unitScale);
+        //batch.draw(Constants.RECORDS.get(721).frames[0].texture, TILE_DIM * 52, TILE_DIM * 56);
 
+        //drawDebugGrid(debugGridTexture, batch, TILE_DIM * unitScale);
         Vector3 v = new Vector3();
         setCurrentMapCoords(v);
-        Ultima7.font.draw(batch, String.format("[%.0f, %.0f]", v.x / unitScale, v.y / unitScale), 200, SCREEN_HEIGHT - 24);
+        int nx = (int) v.x;
+        int ny = (int) v.y;
+        int sx = nx * 8 / 2048;
+        int sy = ny * 8 / 2048;
+        int cx = ((nx * 8) - (sx * 2048)) / 128;
+        int cy = ((ny * 8) - (sy * 2048)) / 128;
+        Ultima7.font.draw(batch, String.format("[%d, %d] region [%d][%d] chunk [%d][%d]", nx, ny, sy, sx, cy, cx), 200, SCREEN_HEIGHT - 24);
 
         batch.end();
 
@@ -134,39 +153,28 @@ public class GameScreen extends BaseScreen {
     }
 
     @Override
+    public boolean keyDown(int keycode) {
+        if (keycode == Keys.UP) {
+            this.movingDirection = Direction.NORTH;
+        } else if (keycode == Keys.DOWN) {
+            this.movingDirection = Direction.SOUTH;
+        } else if (keycode == Keys.RIGHT) {
+            this.movingDirection = Direction.EAST;
+        } else if (keycode == Keys.LEFT) {
+            this.movingDirection = Direction.WEST;
+        }
+        return false;
+    }
+
+    @Override
     public boolean keyUp(int keycode) {
+
+        this.movingDirection = null;
+
         Vector3 v = new Vector3();
         setCurrentMapCoords(v);
 
-        if (keycode == Keys.UP) {
-
-            if (!preMove(v, Direction.NORTH)) {
-                return false;
-            }
-            newMapPixelCoords.y = newMapPixelCoords.y + TILE_DIM * this.unitScale * 1;
-            v.y -= 1;
-        } else if (keycode == Keys.DOWN) {
-
-            if (!preMove(v, Direction.SOUTH)) {
-                return false;
-            }
-            newMapPixelCoords.y = newMapPixelCoords.y - TILE_DIM * this.unitScale * 1;
-            v.y += 1;
-        } else if (keycode == Keys.RIGHT) {
-
-            if (!preMove(v, Direction.EAST)) {
-                return false;
-            }
-            newMapPixelCoords.x = newMapPixelCoords.x + TILE_DIM * this.unitScale * 1;
-            v.x += 1;
-        } else if (keycode == Keys.LEFT) {
-
-            if (!preMove(v, Direction.WEST)) {
-                return false;
-            }
-            newMapPixelCoords.x = newMapPixelCoords.x - TILE_DIM * this.unitScale * 1;
-            v.x -= 1;
-        } else if (keycode == Keys.U) {
+        if (keycode == Keys.U) {
 
         } else if (keycode == Keys.E || keycode == Keys.K) {
 
@@ -199,41 +207,14 @@ public class GameScreen extends BaseScreen {
             nx = (int) current.x + 1;
         }
 
-        //if (nx > this.map.getWidth() - 1 || nx < 0 || ny > this.map.getHeight() - 1 || ny < 0) {
-        //Andius.mainGame.setScreen(Map.WORLD.getScreen());
-        //return false;
-        //}
-//        TiledMapTileLayer layer = (TiledMapTileLayer) this.map.getTiledMap().getLayers().get("base");
-//        TiledMapTileLayer.Cell cell = layer.getCell(nx, this.map.getHeight() - 1 - ny);
-//        if (cell != null) {
-//            TileFlags tf = Ultima6.TILE_FLAGS.get(cell.getTile().getId() - 1);
-//            if (tf.isWall() || tf.isImpassable() || tf.isWet()) {
-//                TileFlags otf = null;
-//                MapLayer objLayer = this.map.getTiledMap().getLayers().get("objects");
-//                for (MapObject obj : objLayer.getObjects()) {
-//                    TiledMapTileMapObject tmo = (TiledMapTileMapObject) obj;
-//                    float ox = ((Float) tmo.getProperties().get("x")) / 16;
-//                    float oy = ((Float) tmo.getProperties().get("y")) / 16;
-//                    if (ox == nx && oy == this.map.getHeight() - 1 - ny && !tf.isWall()) {
-//                        int gid = (Integer) tmo.getProperties().get("gid");
-//                        otf = Ultima6.TILE_FLAGS.get(gid - 1);
-//                        break;
-//                    }
-//                }
-//                if (otf != null) {
-//                    if (otf.isWall() || otf.isImpassable() || otf.isWet()) {
-//                        Sounds.play(Sound.BLOCKED);
-//                        //return false;
-//                    }
-//                } else {
-//                    Sounds.play(Sound.BLOCKED);
-//                    //return false;
-//                }
-//            }
-//        } else {
-//            Sounds.play(Sound.BLOCKED);
-//            //return false;
-//        }
+        //TODO check if blocked here
+        int sx = nx * 8 / 2048;
+        int sy = ny * 8 / 2048;
+        int cx = ((nx * 8) - (sx * 2048)) / 128;
+        int cy = ((ny * 8) - (sy * 2048)) / 128;
+
+        Chunk chunk = REGIONS[sy][sx].chunks[cy][cx];
+
         return true;
     }
 
@@ -258,9 +239,41 @@ public class GameScreen extends BaseScreen {
         @Override
         public void run() {
             if (active) {
-//                if (System.currentTimeMillis() - CLOCK.getLastIncrementTime() > 15 * 1000) {
-//                    keyUp(Keys.SPACE);
-//                }
+
+            }
+        }
+    }
+
+    public class AvatarMovementTimer implements Runnable {
+
+        @Override
+        public void run() {
+            if (movingDirection != null) {
+
+                Vector3 v = new Vector3();
+                setCurrentMapCoords(v);
+
+                if (movingDirection == Direction.NORTH) {
+                    if (preMove(v, Direction.NORTH)) {
+                        newMapPixelCoords.y = newMapPixelCoords.y + TILE_DIM * unitScale;
+                        v.y -= 1;
+                    }
+                } else if (movingDirection == Direction.SOUTH) {
+                    if (preMove(v, Direction.SOUTH)) {
+                        newMapPixelCoords.y = newMapPixelCoords.y - TILE_DIM * unitScale;
+                        v.y += 1;
+                    }
+                } else if (movingDirection == Direction.EAST) {
+                    if (preMove(v, Direction.EAST)) {
+                        newMapPixelCoords.x = newMapPixelCoords.x + TILE_DIM * unitScale;
+                        v.x += 1;
+                    }
+                } else if (movingDirection == Direction.WEST) {
+                    if (preMove(v, Direction.WEST)) {
+                        newMapPixelCoords.x = newMapPixelCoords.x - TILE_DIM * unitScale;
+                        v.x -= 1;
+                    }
+                }
             }
         }
     }

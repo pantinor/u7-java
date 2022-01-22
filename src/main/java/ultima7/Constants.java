@@ -11,7 +11,10 @@ import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.apache.commons.io.IOUtils;
 
 public class Constants {
@@ -41,6 +44,7 @@ public class Constants {
         FileInputStream pis = new FileInputStream(STATICDIR + "PALETTES.FLX");
         FileInputStream tis = new FileInputStream(STATICDIR + "TFA.DAT");
         FileInputStream xis = new FileInputStream(STATICDIR + "XFORM.TBL");
+        FileInputStream occis = new FileInputStream(STATICDIR + "OCCLUDE.DAT");
 
         ByteBuffer cbb = ByteBuffer.wrap(IOUtils.toByteArray(cis)).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer mbb = ByteBuffer.wrap(IOUtils.toByteArray(mis)).order(ByteOrder.LITTLE_ENDIAN);
@@ -48,57 +52,7 @@ public class Constants {
         ByteBuffer pbb = ByteBuffer.wrap(IOUtils.toByteArray(pis)).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer xbb = ByteBuffer.wrap(IOUtils.toByteArray(xis)).order(ByteOrder.LITTLE_ENDIAN);
         byte[] tfa = IOUtils.toByteArray(tis);
-
-        int[][][][] chunkIds = new int[12][12][16][16];
-
-        for (int yy = 0; yy < 12; yy++) {
-            for (int xx = 0; xx < 12; xx++) {
-                for (int y = 0; y < 16; y++) {
-                    for (int x = 0; x < 16; x++) {
-                        int id = read2(mbb);
-                        chunkIds[yy][xx][y][x] = id;
-                    }
-                }
-            }
-        }
-
-        for (int yy = 0; yy < 12; yy++) {
-            for (int xx = 0; xx < 12; xx++) {
-
-                Chunk[][] chunks = new Chunk[16][16];
-                Region region = new Region(yy * 12 + xx, chunks);
-                REGIONS[yy][xx] = region;
-
-                for (int y = 0; y < 16; y++) {
-                    for (int x = 0; x < 16; x++) {
-
-                        int chunkId = chunkIds[yy][xx][y][x];
-
-                        int offset = chunkId * 512;
-
-                        Shape[][] shapes = new Shape[16][16];
-                        chunks[y][x] = new Chunk(xx, yy, x, y, chunkId, shapes);
-
-                        for (int tiley = 0; tiley < 16; tiley++) {
-                            for (int tilex = 0; tilex < 16; tilex++) {
-
-                                int shapeIndex = (cbb.get(offset + 0) & 0xff) + 256 * (cbb.get(offset + 1) & 3);
-                                int frameIndex = (cbb.get(offset + 1) >> 2) & 0x1f;
-
-                                Shape s = new Shape(shapeIndex, frameIndex);
-                                shapes[tiley][tilex] = s;
-
-                                offset += 2;
-                            }
-                        }
-                    }
-                }
-
-                getIRegObjects(region, "U7IREG");//these files do not exist until after game data is saved
-                getFixedObjects(region, "U7IFIX");
-
-            }
-        }
+        byte[] occludes = IOUtils.toByteArray(occis);
 
         xbb.position(0x80);
         for (int i = 0; i < 20; i++) {
@@ -141,9 +95,9 @@ public class Constants {
             rec.tfa[1] = tfa[i * 3 + 1];
             rec.tfa[2] = tfa[i * 3 + 2];
 
-            rec.dims[0] = 1 + (rec.tfa[2] & 7);
-            rec.dims[1] = 1 + ((rec.tfa[2] >> 3) & 7);
-            rec.dims[2] = rec.tfa[0] >> 5;
+            rec.dims[0] = (1 + (tfa[2] & 7));
+            rec.dims[1] = (1 + ((tfa[2] >> 3) & 7));
+            rec.dims[2] = ((tfa[0] >> 5) & 7);
         }
 
         for (Record rec : RECORDS) {
@@ -153,21 +107,97 @@ public class Constants {
             //System.out.println(rec);
         }
 
+        for (int i = 0; i < occludes.length; i++) {
+            byte bits = occludes[i];
+            int shnum = i * 8;
+            BitSet bitset = BitSet.valueOf(new byte[]{bits});
+            for (int b = 0; b < 8; b++) {
+                if (bitset.get(b)) {
+                    RECORDS.get(shnum + b).occludes = true;
+                }
+            }
+        }
+
+        int[][][][] chunkIds = new int[12][12][16][16];
+
+        for (int yy = 0; yy < 12; yy++) {
+            for (int xx = 0; xx < 12; xx++) {
+                for (int y = 0; y < 16; y++) {
+                    for (int x = 0; x < 16; x++) {
+                        int id = read2(mbb);
+                        chunkIds[yy][xx][y][x] = id;
+                    }
+                }
+            }
+        }
+
+        for (int yy = 0; yy < 12; yy++) {
+            for (int xx = 0; xx < 12; xx++) {
+                Region region = new Region(yy * 12 + xx);
+                REGIONS[yy][xx] = region;
+                for (int y = 0; y < 16; y++) {
+                    for (int x = 0; x < 16; x++) {
+                        int chunkId = chunkIds[yy][xx][y][x];
+                        int offset = chunkId * 512;
+                        Shape[][] shapes = new Shape[16][16];
+                        region.chunks[y][x] = new Chunk(xx, yy, x, y, chunkId, shapes);
+                        for (int tiley = 0; tiley < 16; tiley++) {
+                            for (int tilex = 0; tilex < 16; tilex++) {
+                                int shapeIndex = (cbb.get(offset + 0) & 0xff) + 256 * (cbb.get(offset + 1) & 3);
+                                int frameIndex = (cbb.get(offset + 1) >> 2) & 0x1f;
+                                Shape s = new Shape(shapeIndex, frameIndex);
+                                shapes[tiley][tilex] = s;
+                                offset += 2;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (int yy = 0; yy < 12; yy++) {
+            for (int xx = 0; xx < 12; xx++) {
+                Region region = REGIONS[yy][xx];
+                getIRegObjects(region, "U7IREG");//these files do not exist until after game data is saved
+                getFixedObjects(region, "U7IFIX");
+            }
+        }
+
+        for (int yy = 0; yy < 12; yy++) {
+            for (int xx = 0; xx < 12; xx++) {
+                Region region = REGIONS[yy][xx];
+                for (int y = 0; y < 16; y++) {
+                    for (int x = 0; x < 16; x++) {
+                        Chunk c = region.chunks[y][x];
+                        if (c.objects.size() > 0) {
+                            //System.out.printf("Region [%d] chunk [%d,%d] objects %d\n ", region.id, y, x, c.objects.size());
+                            for (ObjectEntry e : c.objects) {
+                                //System.out.println("\t" + e.toString());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
     }
 
     public static class Region {
 
         int id;
-        Chunk[][] chunks;
+        Chunk[][] chunks = new Chunk[16][16];
 
-        public Region(int id, Chunk[][] chunks) {
+        public Region(int id) {
             this.id = id;
-            this.chunks = chunks;
         }
 
     }
 
     public static class Chunk {
+
+        public static enum Neighbor {
+            ABOVE, ABOVE_LEFT, LEFT, RIGHT, BELOW, BELOW_RIGHT
+        };
 
         int sx;
         int sy;
@@ -176,16 +206,89 @@ public class Constants {
 
         int id;
         Shape[][] shapes;
-        List<ObjectEntry> objects = new ArrayList<>();
+
+        final List<ObjectEntry> objects = new ArrayList<>();
+        short fromBelow, fromRight, fromBelowRight;
 
         public Chunk(int sx, int sy, int cx, int cy, int id, Shape[][] shapes) {
             this.sx = sx;
             this.sy = sy;
             this.cx = cx;
             this.cy = cy;
-
             this.id = id;
             this.shapes = shapes;
+        }
+
+        public Chunk getNeighbor(Neighbor direction) {
+
+            Chunk neighborChunk = null;
+
+            try {
+                switch (direction) {
+                    case ABOVE: {
+                        if (cy == 0) {
+                            neighborChunk = REGIONS[sy - 1][sx].chunks[15][cx];
+                        } else {
+                            neighborChunk = REGIONS[sy][sx].chunks[cy - 1][cx];
+                        }
+                        break;
+                    }
+                    case ABOVE_LEFT: {
+                        if (cy == 0 && cx == 0) {
+                            neighborChunk = REGIONS[sy - 1][sx - 1].chunks[15][15];
+                        } else if (cy == 0 && cx > 0) {
+                            neighborChunk = REGIONS[sy - 1][sx].chunks[15][cx - 1];
+                        } else if (cy > 0 && cx == 0) {
+                            neighborChunk = REGIONS[sy][sx - 1].chunks[cy - 1][15];
+                        } else {
+                            neighborChunk = REGIONS[sy][sx].chunks[cy - 1][cx - 1];
+                        }
+                        break;
+                    }
+                    case LEFT: {
+                        if (cx == 0) {
+                            neighborChunk = REGIONS[sy][sx - 1].chunks[cy][15];
+                        } else {
+                            neighborChunk = REGIONS[sy][sx].chunks[cy][cx - 1];
+                        }
+                        break;
+                    }
+                    case RIGHT: {
+                        if (cx == 15) {
+                            neighborChunk = REGIONS[sy][sx + 1].chunks[cy][0];
+                        } else {
+                            neighborChunk = REGIONS[sy][sx].chunks[cy][cx + 1];
+                        }
+                        break;
+                    }
+                    case BELOW: {
+                        if (cy == 15) {
+                            neighborChunk = REGIONS[sy + 1][sx].chunks[0][cx];
+                        } else {
+                            neighborChunk = REGIONS[sy][sx].chunks[cy - 1][cx];
+                        }
+                        break;
+                    }
+                    case BELOW_RIGHT: {
+                        if (cy == 15 && cx == 15) {
+                            neighborChunk = REGIONS[sy + 1][sx + 1].chunks[0][0];
+                        } else if (cy == 15 && cx < 15) {
+                            neighborChunk = REGIONS[sy + 1][sx].chunks[0][cx + 1];
+                        } else if (cy < 15 && cx == 15) {
+                            neighborChunk = REGIONS[sy][sx + 1].chunks[cy + 1][0];
+                        } else {
+                            neighborChunk = REGIONS[sy][sx].chunks[cy + 1][cx + 1];
+                        }
+                        break;
+                    }
+
+                }
+
+            } catch (Exception e) {
+                //nothing
+            }
+
+            return neighborChunk;
         }
 
         @Override
@@ -222,6 +325,11 @@ public class Constants {
             return this.cy == other.cy;
         }
 
+        @Override
+        public String toString() {
+            return "Chunk{" + "sx=" + sx + ", sy=" + sy + ", cx=" + cx + ", cy=" + cy + ", id=" + id + '}';
+        }
+
     }
 
     public static class Shape {
@@ -241,9 +349,27 @@ public class Constants {
         int number;
         int width;
         int height;
+
+        int xright;
+        int xleft;
+        int yabove;
+        int ybelow;
+
         Pixmap bi;
         TextureRegion texture;
         ByteBuffer pixels;
+
+        public Frame(int number, int xright, int xleft, int yabove, int ybelow) {
+            this.xright = xright;
+            this.xleft = xleft;
+            this.yabove = yabove;
+            this.ybelow = ybelow;
+            this.number = number;
+            this.width = xright + xleft + 1;
+            this.height = yabove + ybelow + 1;
+            this.bi = new Pixmap(width, height, Format.RGBA8888);
+            this.pixels = ByteBuffer.allocate(width * height);
+        }
 
         public Frame(int number, int width, int height) {
             this.number = number;
@@ -263,6 +389,7 @@ public class Constants {
         byte[] data;
         ByteBuffer bb;
         Frame[] frames;
+        boolean occludes;
 
         int[] tfa = new int[3];
         int[] dims = new int[3];
@@ -277,11 +404,9 @@ public class Constants {
 
         @Override
         public String toString() {
-            return String.format("Record %d offset [%d] len [%d] %s shapeSize [%d] offset count [%d] frames [%s] hgt [%d]",
-                    this.num, this.offset, this.len, isRawChunkBits() ? "RAW" : "SHP", shapeSize(), offsetCount(), frames != null ? frames.length : this.len / 8 * 8, dims[2]);
-
-            //return String.format("Record %d [%s] isTransparent [%s] isTranslucent [%s] isSolid [%s] is Water [%s] isDoor [%s] isLightSource [%s]",
-            //        this.num, isRawChunkBits() ? "RAW" : "SHP", isTransparent(), isTranslucent(), isSolid(), isWater(), isDoor(), isLightSource());
+            return String.format("Record %d [%s] isField [%s] isAnimated [%s] isSolid [%s] is Water [%s] isDoor [%s] isLightSource [%s] hgt [%d] frames[%d]",
+                    this.num, isRawChunkBits() ? "RAW" : "SHP", isField(), isAnimated(), isSolid(), isWater(), isDoor(), isLightSource(), dims[2],
+                    frames != null ? frames.length : this.len / 8 * 8);
         }
 
         void set() {
@@ -312,7 +437,7 @@ public class Constants {
                         int width = xright + xleft + 1;
                         int height = yabove + ybelow + 1;
 
-                        this.frames[n] = new Frame(n, width, height);
+                        this.frames[n] = new Frame(n, xright, xleft, yabove, ybelow);
 
                         while (true) {
                             int scanData = bb.getShort();
@@ -401,6 +526,7 @@ public class Constants {
 
                 this.frames[f].texture = new TextureRegion(new Texture(this.frames[f].bi));
 
+                this.frames[f].pixels = null;
             }
 
         }
@@ -441,6 +567,10 @@ public class Constants {
             return (tfa[1] & (1 << 5)) != 0;
         }
 
+        boolean occludes() {
+            return this.occludes;
+        }
+
         boolean isTransparent() {
             return (tfa[1] & (1 << 7)) != 0;
         }
@@ -451,6 +581,32 @@ public class Constants {
 
         boolean isTranslucent() {
             return (tfa[2] & (1 << 7)) != 0;
+        }
+
+        public int getShapeClass() {
+            return (int) (tfa[1] & 15);
+        }
+
+        public boolean isBuilding() {
+            int c = getShapeClass();
+            return c == Shapes.building;
+        }
+
+        public boolean isNpc() {
+            int c = getShapeClass();
+            return c == Shapes.human || c == Shapes.monster;
+        }
+
+        public int get3dXtiles(int framenum) {
+            return dims[(framenum >> 5) & 1];
+        }
+
+        public int get3dYtiles(int framenum) {
+            return dims[1 ^ ((framenum >> 5) & 1)];
+        }
+
+        public int get3dHeight() {
+            return dims[2];
         }
 
     }
@@ -559,19 +715,18 @@ public class Constants {
         for (int cy = 0; cy < 16; cy++) {
             for (int cx = 0; cx < 16; cx++) {
                 int idx = cy * 16 + cx;
-                ObjectEntries obj = entries[idx];
+                ObjectEntries obje = entries[idx];
 
-                if (obj == null) {
+                if (obje == null) {
                     continue;
                 }
 
                 Chunk chunk = region.chunks[cy][cx];
 
-                if (obj.entries != null && !obj.entries.isEmpty()) {
-                    chunk.objects.addAll(obj.entries);
+                for (ObjectEntry obj : obje.entries) {
+                    ObjectRendering.addObjectEntry(chunk, obj);
                 }
 
-                //System.out.printf("%s - Region [%d] chunk [%d,%d] objects %d\n ", (fixed ? "IFIX" : "IREG"), region.id, cy, cx, chunk.objects.size());
             }
         }
 
@@ -617,9 +772,12 @@ public class Constants {
             e.ty = b1 & 0xf;
             e.shapeIndex = (b2 & 0xff) + 256 * (b3 & 3);
             e.frameIndex = (b3 >> 2) & 0x1f;
-            e.fixed = false;
 
-            chunk.objects.add(e);
+            if (e.frameIndex < RECORDS.get(e.shapeIndex).frames.length) {
+                e.frame = RECORDS.get(e.shapeIndex).frames[e.frameIndex];
+            }
+
+            ObjectRendering.addObjectEntry(chunk, e);
 
             if (len == 6) {
                 bb.get();//todo
@@ -635,19 +793,19 @@ public class Constants {
 
     public static class ObjectEntry {
 
-        int tx;
-        int ty;
-        int tz;
-        int shapeIndex;
-        int frameIndex;
-        boolean fixed;
+        public int tx;
+        public int ty;
+        public int tz;
+        public int shapeIndex;
+        public int frameIndex;
+        public Frame frame;
 
-        public int getTileX(int cx) {
-            return cx * 16 + tx;
-        }
+        public final Set<ObjectEntry> dependencies = new HashSet<>();// Objects which must be painted before
+        public final Set<ObjectEntry> dependors = new HashSet<>();// Objects which must be painted after
 
-        public int getTileY(int cy) {
-            return cy * 16 + ty;
+        @Override
+        public String toString() {
+            return "ObjectEntry{" + "tx=" + tx + ", ty=" + ty + ", tz=" + tz + ", shapeIndex=" + shapeIndex + ", frameIndex=" + frameIndex + ", dependencies=" + dependencies.size() + ", dependors=" + dependors.size() + '}';
         }
 
     }
@@ -688,7 +846,10 @@ public class Constants {
                     e.tz = b1 & 0xf;
                     e.shapeIndex = (b2 & 0xff) + 256 * (b3 & 3);
                     e.frameIndex = (b3 >> 2) & 0x1f;
-                    e.fixed = true;
+
+                    if (e.frameIndex < RECORDS.get(e.shapeIndex).frames.length) {
+                        e.frame = RECORDS.get(e.shapeIndex).frames[e.frameIndex];
+                    }
 
                     entries.add(e);
                 }
