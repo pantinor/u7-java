@@ -4,7 +4,9 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Pixmap.Format;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.utils.Array;
 import java.io.FileInputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -390,6 +392,7 @@ public class Constants {
         ByteBuffer bb;
         Frame[] frames;
         boolean occludes;
+        Animation anim;
 
         int[] tfa = new int[3];
         int[] dims = new int[3];
@@ -527,6 +530,14 @@ public class Constants {
                 this.frames[f].texture = new TextureRegion(new Texture(this.frames[f].bi));
 
                 this.frames[f].pixels = null;
+            }
+
+            if (this.isAnimated()) {
+                Array<TextureRegion> arr = new Array<>();
+                for (int f = 0; f < nframes; f++) {
+                    arr.add(this.frames[f].texture);
+                }
+                this.anim = new Animation(.3f, arr);
             }
 
         }
@@ -777,16 +788,19 @@ public class Constants {
                 e.frame = RECORDS.get(e.shapeIndex).frames[e.frameIndex];
             }
 
-            ObjectRendering.addObjectEntry(chunk, e);
-
             if (len == 6) {
-                bb.get();//todo
+                byte b = bb.get();
+                e.tz = (b >> 4) & 0xf;
             } else if (len == 12) {
                 bb.getInt();//todo
                 bb.get();//todo
-                bb.get();//todo
+                byte b = bb.get();
+                e.tz = (b >> 4) & 0xf;
                 bb.get();//todo
             }
+
+            ObjectRendering.addObjectEntry(chunk, e);
+
         }
 
     }

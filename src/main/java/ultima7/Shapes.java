@@ -10,6 +10,49 @@ package ultima7;
  */
 public class Shapes {
 
+    public static final int PATH = 607;
+    public static final int BARGE = 961;
+    public static final int[] SKIP_IDS = new int[]{PATH, BARGE};
+    public static final int[] ROOF_IDS = new int[]{156, 161, 162, 164, 165, 166, 167, 169, 170, 171, 172, 173, 174, 175, 176, 223, 394, 908, 954, 956, 962, 963, 966};
+    public static final int[] MOUNTAIN_IDS = new int[]{180, 182, 183, 324, 969, 983};
+
+    public static boolean isRoof(int sid) {
+        for (int r : ROOF_IDS) {
+            if (r == sid) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isMountain(int sid) {
+        for (int r : MOUNTAIN_IDS) {
+            if (r == sid) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isSkip(int sid) {
+        for (int r : ROOF_IDS) {
+            if (r == sid) {
+                return true;
+            }
+        }
+        for (int r : MOUNTAIN_IDS) {
+            if (r == sid) {
+                return true;
+            }
+        }
+        for (int r : SKIP_IDS) {
+            if (r == sid) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // TFA Shape Classes 
     public static final int unusable = 0;// Trees.
     public static final int quality = 2;

@@ -4,8 +4,8 @@ import ultima7.Constants.Chunk;
 import ultima7.Constants.Chunk.Neighbor;
 import ultima7.Constants.Frame;
 import ultima7.Constants.ObjectEntry;
-import ultima7.Constants.Record;
 import static ultima7.Constants.RECORDS;
+import ultima7.Constants.Record;
 import static ultima7.Constants.TILE_DIM;
 
 public class ObjectRendering {
@@ -125,6 +125,37 @@ public class ObjectRendering {
                 newObj.dependors.add(obj);
             }
         }
+
+//        for (int tiley = 0; tiley < 16; tiley++) {
+//            for (int tilex = 0; tilex < 16; tilex++) {
+//                Constants.Shape s = chunk.shapes[tiley][tilex];
+//                Record r = RECORDS.get(s.shapeIndex);
+//                if (!r.isRawChunkBits()) {
+//                    ObjectEntry e = new ObjectEntry();
+//                    e.tx = tilex;
+//                    e.ty = tiley;
+//                    e.tz = 0;
+//                    e.shapeIndex = s.shapeIndex;
+//                    e.frameIndex = s.frameIndex;
+//
+//                    if (e.frameIndex < RECORDS.get(e.shapeIndex).frames.length) {
+//                        e.frame = RECORDS.get(e.shapeIndex).frames[e.frameIndex];
+//                    }
+//
+//                    int newcmp = compare(newInfo, e);
+//                    int cmp = newcmp == -1 ? 1 : newcmp == 1 ? 0 : -1;
+//                    if (cmp == 0) {
+//                        newObj.dependencies.add(e);
+//                        e.dependors.add(newObj);
+//                    } else if (cmp == 1) {
+//                        e.dependencies.add(newObj);
+//                        newObj.dependors.add(e);
+//                    }
+//                    
+//                    chunk.objects.add(e);
+//                }
+//            }
+//        }
     }
 
     private static int compare(OrderingInfo inf1, ObjectEntry obj2) {
@@ -138,7 +169,7 @@ public class ObjectRendering {
         int xcmp, ycmp, zcmp;
 
         boolean xover, yover, zover;
-        
+
         xcmp = compareRanges(inf1.xleft, inf1.xright, inf2.xleft, inf2.xright);
         xover = (xcmp & 0x100) != 0;
         xcmp = (xcmp & 0xff) - 1;
@@ -148,7 +179,7 @@ public class ObjectRendering {
         zcmp = compareRanges(inf1.zbot, inf1.ztop, inf2.zbot, inf2.ztop);
         zover = (zcmp & 0x100) != 0;
         zcmp = (zcmp & 0xff) - 1;
-        
+
         if (xcmp == 0 && ycmp == 0 && zcmp == 0) {
             return (inf1.area.w < inf2.area.w
                     && inf1.area.h < inf2.area.h) ? -1
@@ -163,15 +194,15 @@ public class ObjectRendering {
                 return 1;
             }
         }
-        
+
         if (xcmp >= 0 && ycmp >= 0 && zcmp >= 0) {
             return 1;
         }
-        
+
         if (xcmp <= 0 && ycmp <= 0 && zcmp <= 0) {
             return -1;
         }
-        
+
         if (yover) {
             if (xover) {
                 return zcmp;

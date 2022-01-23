@@ -1,7 +1,6 @@
 package ultima7;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -69,10 +68,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
         try {
             beginRender();
 
-            this.stateTime += Gdx.graphics.getDeltaTime() / 4;
-
-            final Color batchColor = batch.getColor();
-            final float color = Color.toFloatBits(batchColor.r, batchColor.g, batchColor.b, batchColor.a * 1);
+            this.stateTime += Gdx.graphics.getDeltaTime() / 1;
 
             int layerWidth = MAP_TILE_WIDTH;
             int layerHeight = MAP_TILE_HEIGHT;
@@ -118,7 +114,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                         continue;
                     }
 
-                    batch.draw(tr.getTexture(), x, y, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
+                    batch.draw(tr.getTexture(), x, y, dim, dim);
 
                     x += layerTileWidth;
                 }
@@ -147,17 +143,30 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                     Shape shape = chunk.shapes[15 - cy][cx];
                     Record rec = RECORDS.get(shape.shapeIndex);
 
-                    TextureRegion tr = rec.frames[shape.frameIndex].texture;
-
                     if (rec.isRawChunkBits()) {
                         x += layerTileWidth;
                         continue;
                     }
 
+                    {
+                        //HACK to cover up those black empty blocks by the trees - draw a nearby square underneath it (tile to left)
+                        Shape tmps = chunk.shapes[scy][scx == 0 ? scx + 1 : scx - 1];
+                        Record tmprec = RECORDS.get(tmps.shapeIndex);
+                        TextureRegion ttr = tmprec.frames[tmps.frameIndex].texture;
+                        batch.draw(ttr.getTexture(), x, y, dim, dim);
+                    }
+
+                    TextureRegion tr = null;
+                    if (rec.isAnimated()) {
+                        tr = (TextureRegion) rec.anim.getKeyFrame(this.stateTime, true);
+                    } else {
+                        tr = rec.frames[shape.frameIndex].texture;
+                    }
+
                     float tx = x - tr.getRegionWidth() * unitScale + dim;
                     float ty = y;
 
-                    batch.draw(tr.getTexture(), tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
+                    batch.draw(tr, tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
 
                     x += layerTileWidth;
                 }
@@ -185,6 +194,9 @@ public class U7MapRenderer implements MapRenderer, Disposable {
             drawObject(chunk, dep);
         }
         drawObject(chunk, e);
+        for (ObjectEntry dep : e.dependors) {
+            //drawObject(chunk, dep);
+        }
     }
 
     private void drawObject(Chunk chunk, ObjectEntry e) {
@@ -194,8 +206,12 @@ public class U7MapRenderer implements MapRenderer, Disposable {
             return;
         }
 
-        if (rec.occludes) {
+        if (Shapes.isSkip(e.shapeIndex) || rec.isTransparent()) {
             return;
+        }
+
+        if (rec.occludes) {
+            //return;
         }
 
         if (rec.getShapeClass() == Shapes.quality) {
@@ -206,13 +222,18 @@ public class U7MapRenderer implements MapRenderer, Disposable {
             //return;
         }
 
-        TextureRegion tr = rec.frames[e.frameIndex].texture;
+        TextureRegion tr = null;
+        if (rec.isAnimated()) {
+            tr = (TextureRegion) rec.anim.getKeyFrame(this.stateTime, true);
+        } else {
+            tr = rec.frames[e.frameIndex].texture;
+        }
 
         int ex = e.tx;
         int ey = e.ty;
 
         float lft = (dim * e.tz) / 2;
-
+        
         ex += 1;
         ey += 1;
 
