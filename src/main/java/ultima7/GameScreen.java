@@ -60,9 +60,9 @@ public class GameScreen extends BaseScreen {
         seq2.addAction(Actions.run(new AvatarMovementTimer()));
         stage.addAction(Actions.forever(seq2));
 
-        //setMapPixelCoords(this.newMapPixelCoords, 1070, 2214);
-        setMapPixelCoords(this.newMapPixelCoords, 985, 2215);
-        //setMapPixelCoords(this.newMapPixelCoords, 239, 241);//4400, 5392
+        setMapPixelCoords(this.newMapPixelCoords, 1070, 2214);
+        //setMapPixelCoords(this.newMapPixelCoords, 985, 2215);
+        //setMapPixelCoords(this.newMapPixelCoords, 244, 245);//4400, 5392
 
     }
 

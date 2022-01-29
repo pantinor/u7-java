@@ -165,7 +165,7 @@ public class MapRender {
 //        packAtlas(0, 149, "base-tiles", records, settings);
 //        packAtlas(150, 300, "shape-tiles-1", records, settings);
 //        packAtlas(301, 600, "shape-tiles-2", records, settings);
-        packAtlas(700, 730, "shape-tiles-3", records, settings);
+        packAtlas(410, 420, "shape-tiles-1", records, settings);
 //        packAtlas(900, 1024, "shape-tiles-4", records, settings);
         if (true) {
             return;
@@ -182,6 +182,10 @@ public class MapRender {
             }
         }
         ImageIO.write(mapImage, "PNG", new File("target/regions-nw.png"));
+
+        if (true) {
+            return;
+        }
 
         for (int yy = 0, y = 0; yy < 6; yy++, y++) {
             for (int xx = 6, x = 0; xx < 12; xx++, x++) {

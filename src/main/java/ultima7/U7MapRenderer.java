@@ -39,22 +39,9 @@ public class U7MapRenderer implements MapRenderer, Disposable {
         this.batch = new SpriteBatch();
     }
 
-    public Region[][] getMap() {
-        return map;
-    }
-
-    public Batch getBatch() {
-        return batch;
-    }
-
     @Override
     public void setView(OrthographicCamera camera) {
-        batch.setProjectionMatrix(camera.combined);
-        float width = camera.viewportWidth * camera.zoom;
-        float height = camera.viewportHeight * camera.zoom;
-        float w = width * Math.abs(camera.up.y) + height * Math.abs(camera.up.x);
-        float h = height * Math.abs(camera.up.y) + width * Math.abs(camera.up.x);
-        viewBounds.set(camera.position.x - w / 2, camera.position.y - h / 2, w, h);
+
     }
 
     @Override
@@ -166,8 +153,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                     float tx = x - tr.getRegionWidth() * unitScale + dim;
                     float ty = y;
 
-                    batch.draw(tr, tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
-
+                    //batch.draw(tr, tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
                     x += layerTileWidth;
                 }
                 y -= layerTileHeight;
@@ -177,7 +163,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                 if (!chunk.objects.isEmpty()) {
                     for (int i = chunk.objects.size() - 1; i >= 0; i--) {
                         ObjectEntry e = chunk.objects.get(i);
-                        drawObjectWithDependencies(chunk, e);
+                        drawObjectWithDependencies(e);
                     }
                 }
             }
@@ -189,51 +175,42 @@ public class U7MapRenderer implements MapRenderer, Disposable {
 
     }
 
-    private void drawObjectWithDependencies(Chunk chunk, ObjectEntry e) {
-        for (ObjectEntry dep : e.dependencies) {
-            drawObject(chunk, dep);
+    private void drawObjectWithDependencies(ObjectEntry e) {
+        if (!e.dependents.isEmpty()) {
+            for (int i = e.dependents.size() - 1; i >= 0; i--) {
+                ObjectEntry dep = e.dependents.get(i);
+                drawObject(dep);
+            }
         }
-        drawObject(chunk, e);
-        for (ObjectEntry dep : e.dependors) {
-            //drawObject(chunk, dep);
-        }
+        drawObject(e);
     }
 
-    private void drawObject(Chunk chunk, ObjectEntry e) {
+    private void drawObject(ObjectEntry e) {
 
         Record rec = RECORDS.get(e.shapeIndex);
-        if (e.frameIndex >= rec.frames.length) {
+
+        if (Shapes.isSkip(e.shapeIndex)) {
             return;
         }
 
-        if (Shapes.isSkip(e.shapeIndex) || rec.isTransparent()) {
+        if (rec.isTransparent()) {
             return;
         }
-
-        if (rec.occludes) {
-            //return;
-        }
-
-        if (rec.getShapeClass() == Shapes.quality) {
-            //return;
-        }
-
-        if (rec.getShapeClass() == Shapes.hatchable) {
-            //return;
-        }
+        
+        Chunk chunk = e.currentChunk;
 
         TextureRegion tr = null;
         if (rec.isAnimated()) {
             tr = (TextureRegion) rec.anim.getKeyFrame(this.stateTime, true);
         } else {
-            tr = rec.frames[e.frameIndex].texture;
+            tr = rec.frames[e.frameIndex < rec.frames.length ? e.frameIndex : rec.frames.length - 1].texture;
         }
 
         int ex = e.tx;
         int ey = e.ty;
 
         float lft = (dim * e.tz) / 2;
-        
+
         ex += 1;
         ey += 1;
 

@@ -14,9 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import org.apache.commons.io.IOUtils;
 
 public class Constants {
@@ -150,6 +148,19 @@ public class Constants {
                                 Shape s = new Shape(shapeIndex, frameIndex);
                                 shapes[tiley][tilex] = s;
                                 offset += 2;
+
+                                Record r = RECORDS.get(s.shapeIndex);
+                                if (!r.isRawChunkBits()) {
+                                    ObjectEntry e = new ObjectEntry();
+                                    e.tx = tilex;
+                                    e.ty = tiley;
+                                    e.tz = 0;
+                                    e.shapeIndex = s.shapeIndex;
+                                    e.frameIndex = s.frameIndex;
+                                    e.frame = r.frames[e.frameIndex];
+                                    e.currentChunk = region.chunks[y][x];
+                                    region.chunks[y][x].objects.add(e);
+                                }
                             }
                         }
                     }
@@ -171,16 +182,32 @@ public class Constants {
                 for (int y = 0; y < 16; y++) {
                     for (int x = 0; x < 16; x++) {
                         Chunk c = region.chunks[y][x];
-                        if (c.objects.size() > 0) {
-                            //System.out.printf("Region [%d] chunk [%d,%d] objects %d\n ", region.id, y, x, c.objects.size());
+                        if (!c.objects.isEmpty()) {
                             for (ObjectEntry e : c.objects) {
-                                //System.out.println("\t" + e.toString());
+                                ObjectRendering.addObjectDependencies(e);
                             }
                         }
                     }
                 }
             }
         }
+
+//        for (int yy = 0; yy < 12; yy++) {
+//            for (int xx = 0; xx < 12; xx++) {
+//                Region region = REGIONS[yy][xx];
+//                for (int y = 0; y < 16; y++) {
+//                    for (int x = 0; x < 16; x++) {
+//                        Chunk c = region.chunks[y][x];
+//                        System.out.printf("Region [%d] chunk [%d,%d] objects %d\n ", region.id, y, x, c.objects.size());
+//                        if (!c.objects.isEmpty()) {
+//                            for (ObjectEntry e : c.objects) {
+//                                System.out.println("\t" + e.toString());
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
 
     }
 
@@ -198,7 +225,7 @@ public class Constants {
     public static class Chunk {
 
         public static enum Neighbor {
-            ABOVE, ABOVE_LEFT, LEFT, RIGHT, BELOW, BELOW_RIGHT
+            SELF, ABOVE, ABOVE_LEFT, ABOVE_RIGHT, LEFT, RIGHT, BELOW, BELOW_RIGHT, BELOW_LEFT
         };
 
         int sx;
@@ -210,7 +237,6 @@ public class Constants {
         Shape[][] shapes;
 
         final List<ObjectEntry> objects = new ArrayList<>();
-        short fromBelow, fromRight, fromBelowRight;
 
         public Chunk(int sx, int sy, int cx, int cy, int id, Shape[][] shapes) {
             this.sx = sx;
@@ -244,6 +270,18 @@ public class Constants {
                             neighborChunk = REGIONS[sy][sx - 1].chunks[cy - 1][15];
                         } else {
                             neighborChunk = REGIONS[sy][sx].chunks[cy - 1][cx - 1];
+                        }
+                        break;
+                    }
+                    case ABOVE_RIGHT: {
+                        if (cy == 0 && cx == 15) {
+                            neighborChunk = REGIONS[sy - 1][sx + 1].chunks[15][0];
+                        } else if (cy == 0 && cx < 15) {
+                            neighborChunk = REGIONS[sy - 1][sx].chunks[15][cx + 1];
+                        } else if (cy < 15 && cx == 15) {
+                            neighborChunk = REGIONS[sy][sx + 1].chunks[cy - 1][0];
+                        } else {
+                            neighborChunk = REGIONS[sy][sx].chunks[cy - 1][cx + 1];
                         }
                         break;
                     }
@@ -283,7 +321,21 @@ public class Constants {
                         }
                         break;
                     }
-
+                    case BELOW_LEFT: {
+                        if (cy == 15 && cx == 0) {
+                            neighborChunk = REGIONS[sy + 1][sx - 1].chunks[0][15];
+                        } else if (cy == 15 && cx > 0) {
+                            neighborChunk = REGIONS[sy][sx - 1].chunks[0][cx - 1];
+                        } else if (cy < 15 && cx == 0) {
+                            neighborChunk = REGIONS[sy][sx - 1].chunks[cy + 1][15];
+                        } else {
+                            neighborChunk = REGIONS[sy][sx].chunks[cy + 1][cx - 1];
+                        }
+                        break;
+                    }
+                    case SELF:
+                        neighborChunk = this;
+                        break;
                 }
 
             } catch (Exception e) {
@@ -735,13 +787,21 @@ public class Constants {
                 Chunk chunk = region.chunks[cy][cx];
 
                 for (ObjectEntry obj : obje.entries) {
-                    ObjectRendering.addObjectEntry(chunk, obj);
+                    obj.currentChunk = chunk;
+                    chunk.objects.add(obj);
                 }
 
             }
         }
 
     }
+
+    public static int IREG_EXTENDED = 254;
+    public static int IREG_SPECIAL = 255;
+    public static int IREG_UCSCRIPT = 1;
+    public static int IREG_ENDMARK = 2;
+    public static int IREG_ATTS = 3;
+    public static int IREG_STRING = 4;
 
     public static void getIRegObjects(Region region, String prefix) throws Exception {
 
@@ -758,7 +818,25 @@ public class Constants {
         //System.out.printf("%s - Region [%d] %s\n", fname, region.id, bb.toString());
         while (bb.position() < bb.limit()) {
 
+            int index_id = -1;
+            boolean extended = false;
+
             int len = bb.get() & 0xff;
+
+            if (len == 2) {
+                index_id = read2(bb);
+                continue;
+            }
+
+            if (len == IREG_SPECIAL) {
+                //todo
+                continue;
+            }
+
+            if (len == IREG_EXTENDED) {
+                extended = true;
+                len = bb.get() & 0xff;
+            }
 
             if (len != 6 && len != 12) {
                 continue;
@@ -779,13 +857,29 @@ public class Constants {
             Chunk chunk = region.chunks[cy][cx];
 
             ObjectEntry e = new ObjectEntry();
+
             e.tx = b0 & 0xf;
             e.ty = b1 & 0xf;
+
+            if (extended) {
+                //e.shapeIndex = ((int) b2 & 0xff) + 256 * ((int) b3 & 0xff);
+                //e.frameIndex = (int) bb.get() & 0xff;
+            } else {
+                //e.shapeIndex = ((int) b2 & 0xff) + 256 * ((int) b3 & 3);
+                //e.frameIndex = ((int) b3 & 0xff) >> 2;
+            }
+
             e.shapeIndex = (b2 & 0xff) + 256 * (b3 & 3);
             e.frameIndex = (b3 >> 2) & 0x1f;
+            e.currentChunk = chunk;
 
-            if (e.frameIndex < RECORDS.get(e.shapeIndex).frames.length) {
-                e.frame = RECORDS.get(e.shapeIndex).frames[e.frameIndex];
+            Record rec = RECORDS.get(e.shapeIndex);
+
+            if (e.frameIndex < rec.frames.length) {
+                e.frame = rec.frames[e.frameIndex];
+            } else {
+                //System.out.println("IREG Got object entry with incorrect frame " + e + " " + rec.frames.length);
+                e.frame = rec.frames[0];
             }
 
             if (len == 6) {
@@ -799,7 +893,7 @@ public class Constants {
                 bb.get();//todo
             }
 
-            ObjectRendering.addObjectEntry(chunk, e);
+            chunk.objects.add(e);
 
         }
 
@@ -813,13 +907,51 @@ public class Constants {
         public int shapeIndex;
         public int frameIndex;
         public Frame frame;
+        public Chunk currentChunk; //current chunk that this object is in
 
-        public final Set<ObjectEntry> dependencies = new HashSet<>();// Objects which must be painted before
-        public final Set<ObjectEntry> dependors = new HashSet<>();// Objects which must be painted after
+        public List<ObjectEntry> dependents = new ArrayList<>();
+
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 79 * hash + this.tx;
+            hash = 79 * hash + this.ty;
+            hash = 79 * hash + this.tz;
+            hash = 79 * hash + this.shapeIndex;
+            hash = 79 * hash + this.frameIndex;
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final ObjectEntry other = (ObjectEntry) obj;
+            if (this.tx != other.tx) {
+                return false;
+            }
+            if (this.ty != other.ty) {
+                return false;
+            }
+            if (this.tz != other.tz) {
+                return false;
+            }
+            if (this.shapeIndex != other.shapeIndex) {
+                return false;
+            }
+            return this.frameIndex == other.frameIndex;
+        }
 
         @Override
         public String toString() {
-            return "ObjectEntry{" + "tx=" + tx + ", ty=" + ty + ", tz=" + tz + ", shapeIndex=" + shapeIndex + ", frameIndex=" + frameIndex + ", dependencies=" + dependencies.size() + ", dependors=" + dependors.size() + '}';
+            return "ObjectEntry{" + "tx=" + tx + ", ty=" + ty + ", tz=" + tz + ", shapeIndex=" + shapeIndex + ", frameIndex=" + frameIndex + ", dependents=" + dependents.size() + '}';
         }
 
     }
@@ -861,9 +993,9 @@ public class Constants {
                     e.shapeIndex = (b2 & 0xff) + 256 * (b3 & 3);
                     e.frameIndex = (b3 >> 2) & 0x1f;
 
-                    if (e.frameIndex < RECORDS.get(e.shapeIndex).frames.length) {
-                        e.frame = RECORDS.get(e.shapeIndex).frames[e.frameIndex];
-                    }
+                    Record rec = RECORDS.get(e.shapeIndex);
+
+                    e.frame = rec.frames[e.frameIndex];
 
                     entries.add(e);
                 }
