@@ -42,9 +42,15 @@ public class ObjectRendering {
 //        addObjectDependencies(e, Chunk.Neighbor.ABOVE_LEFT);
     }
 
+    /**
+     * Only add dependencies to non flat objects.
+     *
+     * @param e
+     * @param neighbor
+     */
     private static void addObjectDependencies(ObjectEntry e, Chunk.Neighbor neighbor) {
         Chunk targetChunk = e.currentChunk.getNeighbor(neighbor);
-        if (targetChunk != null) {
+        if (targetChunk != null && !e.flat) {
             for (ObjectEntry dep : targetChunk.objects) {
                 if (!dep.equals(e)) {
                     int cmp = compare(e, dep);
@@ -70,6 +76,11 @@ public class ObjectRendering {
      * @return -1 if 1st < 2nd, 0 if dont_care, 1 if 1st > 2nd
      */
     public static int compare(ObjectEntry e1, ObjectEntry e2) {
+
+        if (Shapes.isRoof(e1.shapeIndex) || Shapes.isRoof(e2.shapeIndex)) {
+            return 0;
+        }
+
         set(e1, bb1);
         set(e2, bb2);
 
@@ -81,17 +92,14 @@ public class ObjectRendering {
         int zcmp = compareRanges(e1.tz, e1.tz + rec1.get3dHeight(), e2.tz, e2.tz + rec2.get3dHeight(), zover);
 
         if (0 != xcmp && 0 != ycmp && 0 != zcmp) {
-            return ((bb1.getWidth() < bb2.getWidth()
-                    && bb1.getHeight() < bb2.getHeight()) ? -1
-                    : (bb1.getWidth() > bb2.getWidth()
-                    && bb2.getHeight() > bb2.getHeight()) ? 1 : 0);
+            return ((bb1.getWidth() < bb2.getWidth() && bb1.getHeight() < bb2.getHeight()) ? -1
+                    : (bb1.getWidth() > bb2.getWidth() && bb2.getHeight() > bb2.getHeight()) ? 1 : 0);
         }
 
         if (xover.get() && yover.get() && zover.get()) {  // Complete overlap?
-            if (0 != bb1.getHeight()) // Flat one is always drawn first.
-            {
-                return (0 != bb2.getHeight() ? 0 : -1);
-            } else if (0 != bb2.getHeight()) {
+            if (0 != rec1.get3dHeight()) { // Flat one is always drawn first.
+                return (0 != rec2.get3dHeight() ? 0 : -1);
+            } else if (0 != rec2.get3dHeight()) {
                 return 1;
             }
         }
@@ -104,19 +112,15 @@ public class ObjectRendering {
             return -1;
         }
 
-        if (yover.get()) {        // Y's overlap.
-            if (xover.get()) // X's too?
-            {
+        if (yover.get()) {// Y's overlap.
+            if (xover.get()) {// X's too?
                 return zcmp;
-            } else if (zover.get()) // Y's and Z's?
-            {
+            } else if (zover.get()) { // Y's and Z's?
                 return xcmp;
             } // Just Y's overlap.
-            else if (0 != zcmp) // Z's equal?
-            {
+            else if (0 != zcmp) {// Z's equal?
                 return (xcmp);
-            } else if (xcmp == zcmp) // See if X and Z dirs. agree.
-            {
+            } else if (xcmp == zcmp) {// See if X and Z dirs. agree.
                 return (xcmp);
 //            } // Fixes Trinsic mayor statue-through-roof.
 //            else if (inf1.ztop / 5 < inf2.zbot / 5 && inf2.info.occludes()) {
@@ -127,20 +131,17 @@ public class ObjectRendering {
                 return 0;
             }
         } else if (xover.get()) {     // X's overlap.
-            if (zover.get()) // X's and Z's?
-            {
+            if (zover.get()) {// X's and Z's?
                 return (ycmp);
-            } else if (0 != zcmp) // Z's equal?
-            {
+            } else if (0 != zcmp) {// Z's equal?
                 return (ycmp);
             } else {
                 return (ycmp == zcmp ? ycmp : 0);
             }
         } // Neither X nor Y overlap.
         else if (xcmp == -1) {      // o1 X before o2 X?
-            if (ycmp == -1) // o1 Y before o2 Y?
-            // If Z agrees or overlaps, it's LT.
-            {
+            if (ycmp == -1) {// o1 Y before o2 Y?
+                // If Z agrees or overlaps, it's LT.
                 return ((zover.get() || zcmp <= 0) ? -1 : 0);
             }
         } else if (ycmp == 1) { // o1 Y after o2 Y?

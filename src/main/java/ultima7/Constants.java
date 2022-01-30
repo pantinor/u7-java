@@ -155,6 +155,7 @@ public class Constants {
                                     e.tx = tilex;
                                     e.ty = tiley;
                                     e.tz = 0;
+                                    e.flat = true;
                                     e.shapeIndex = s.shapeIndex;
                                     e.frameIndex = s.frameIndex;
                                     e.frame = r.frames[e.frameIndex];
@@ -431,6 +432,11 @@ public class Constants {
             this.height = height;
             this.bi = new Pixmap(width, height, Format.RGBA8888);
             this.pixels = ByteBuffer.allocate(width * height);
+        }
+
+        @Override
+        public String toString() {
+            return "Frame{" + "number=" + number + ", width=" + width + ", height=" + height + ", xright=" + xright + ", xleft=" + xleft + ", yabove=" + yabove + ", ybelow=" + ybelow + '}';
         }
 
     }
@@ -908,7 +914,8 @@ public class Constants {
         public int frameIndex;
         public Frame frame;
         public Chunk currentChunk; //current chunk that this object is in
-
+        public boolean flat;
+        
         public List<ObjectEntry> dependents = new ArrayList<>();
 
         @Override
@@ -951,7 +958,7 @@ public class Constants {
 
         @Override
         public String toString() {
-            return "ObjectEntry{" + "tx=" + tx + ", ty=" + ty + ", tz=" + tz + ", shapeIndex=" + shapeIndex + ", frameIndex=" + frameIndex + ", dependents=" + dependents.size() + '}';
+            return "ObjectEntry{" + "tx=" + tx + ", ty=" + ty + ", tz=" + tz + ", shapeIndex=" + shapeIndex + ", frameIndex=" + frameIndex + ", dependents=" + dependents.size() + " " + frame + '}';
         }
 
     }

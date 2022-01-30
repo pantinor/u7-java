@@ -7,8 +7,6 @@ import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.backends.headless.mock.audio.MockAudio;
 import com.badlogic.gdx.backends.headless.mock.graphics.MockGraphics;
 import com.badlogic.gdx.graphics.GL20;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.testng.annotations.Test;
 import ultima7.Constants.ObjectEntry;
@@ -36,23 +34,23 @@ public class ObjectSortTest {
             Thread.sleep(500);
         }
 
-        Chunk chunk2 = REGIONS[11][8].chunks[2][0];
-        //Collections.sort(chunk2.objects);
-
-        ObjectEntry t1 = get(chunk2.objects, 962, 7, 3, 5);
-        ObjectEntry t2 = get(chunk2.objects, 291, 15, 9, 2);
-
-        //ObjectRendering.compare(t1, t2);
-        if (true) {
-            //return;
-        }
-
         Chunk chunk = REGIONS[8][4].chunks[8][2];
-
         ObjectEntry body = get(chunk.objects, 414, 10, 6, 0);
         ObjectEntry w1 = get(chunk.objects, 497, 8, 4, 0);
+        
+        for (ObjectEntry e : chunk.objects) {
+            System.out.println(Shapes.SHAPE_NAMES.get(e.shapeIndex) + " " + e.toString());
+        }
+        
+        System.out.println("***");
 
         for (ObjectEntry e : body.dependents) {
+            System.out.println(Shapes.SHAPE_NAMES.get(e.shapeIndex) + " " + e.toString());
+        }
+        
+        System.out.println("***");
+
+        for (ObjectEntry e : w1.dependents) {
             System.out.println(Shapes.SHAPE_NAMES.get(e.shapeIndex) + " " + e.toString());
         }
 

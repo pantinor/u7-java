@@ -1,6 +1,7 @@
 package ultima7;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -139,8 +140,10 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                         //HACK to cover up those black empty blocks by the trees - draw a nearby square underneath it (tile to left)
                         Shape tmps = chunk.shapes[scy][scx == 0 ? scx + 1 : scx - 1];
                         Record tmprec = RECORDS.get(tmps.shapeIndex);
-                        TextureRegion ttr = tmprec.frames[tmps.frameIndex].texture;
-                        batch.draw(ttr.getTexture(), x, y, dim, dim);
+                        if (tmprec.isRawChunkBits()) {
+                            TextureRegion ttr = tmprec.frames[tmps.frameIndex].texture;
+                            batch.draw(ttr.getTexture(), x, y, dim, dim);
+                        }
                     }
 
                     TextureRegion tr = null;
@@ -153,7 +156,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
                     float tx = x - tr.getRegionWidth() * unitScale + dim;
                     float ty = y;
 
-                    //batch.draw(tr, tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
+                    batch.draw(tr, tx, ty, tr.getRegionWidth() * unitScale, tr.getRegionHeight() * unitScale);
                     x += layerTileWidth;
                 }
                 y -= layerTileHeight;
@@ -175,14 +178,21 @@ public class U7MapRenderer implements MapRenderer, Disposable {
 
     }
 
+    /**
+     * Paint the dependents first and the object itself last.
+     *
+     * @param e
+     */
     private void drawObjectWithDependencies(ObjectEntry e) {
-        if (!e.dependents.isEmpty()) {
-            for (int i = e.dependents.size() - 1; i >= 0; i--) {
-                ObjectEntry dep = e.dependents.get(i);
-                drawObject(dep);
+        if (!e.flat) {
+            if (!e.dependents.isEmpty()) {
+                for (int i = e.dependents.size() - 1; i >= 0; i--) {
+                    ObjectEntry dep = e.dependents.get(i);
+                    //drawObject(dep);
+                }
             }
+            drawObject(e);
         }
-        drawObject(e);
     }
 
     private void drawObject(ObjectEntry e) {
@@ -196,7 +206,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
         if (rec.isTransparent()) {
             return;
         }
-        
+
         Chunk chunk = e.currentChunk;
 
         TextureRegion tr = null;
