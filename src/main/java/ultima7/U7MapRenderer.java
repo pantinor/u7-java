@@ -188,7 +188,7 @@ public class U7MapRenderer implements MapRenderer, Disposable {
             if (!e.dependents.isEmpty()) {
                 for (int i = e.dependents.size() - 1; i >= 0; i--) {
                     ObjectEntry dep = e.dependents.get(i);
-                    //drawObject(dep);
+                    drawObject(dep);
                 }
             }
             drawObject(e);

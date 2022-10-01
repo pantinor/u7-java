@@ -10,6 +10,10 @@ import ultima7.Constants.Record;
 
 public class ObjectRendering {
 
+    private static final int LESS = -1;
+    private static final int GREATER = 1;
+    private static final int SAME = 0;
+
     private static final BoundingBox bb1 = new BoundingBox();
     private static final BoundingBox bb2 = new BoundingBox();
     private static final Vector3 max = new Vector3();
@@ -53,14 +57,15 @@ public class ObjectRendering {
         if (targetChunk != null && !e.flat) {
             for (ObjectEntry dep : targetChunk.objects) {
                 if (!dep.equals(e)) {
-                    int cmp = compare(e, dep);
-                    if (cmp == 1) {
+
+//                    if (isDependent(e, dep)) {
+//                        if (!e.dependents.contains(dep)) {
+//                            e.dependents.add(dep);
+//                        }
+//                    }
+                    if (compare(e, dep) == GREATER) {
                         if (!e.dependents.contains(dep)) {
                             e.dependents.add(dep);
-                        }
-                    } else if (cmp == -1) {
-                        if (!dep.dependents.contains(e)) {
-                            dep.dependents.add(e);
                         }
                     }
                 }
@@ -98,88 +103,133 @@ public class ObjectRendering {
 
         if (xover.get() && yover.get() && zover.get()) {  // Complete overlap?
             if (0 != rec1.get3dHeight()) { // Flat one is always drawn first.
-                return (0 != rec2.get3dHeight() ? 0 : -1);
+                return (0 != rec2.get3dHeight() ? SAME : LESS);
             } else if (0 != rec2.get3dHeight()) {
-                return 1;
+                return GREATER;
             }
         }
 
         if (xcmp >= 0 && ycmp >= 0 && zcmp >= 0) {
-            return 1;
+            return GREATER;
         }
 
         if (xcmp <= 0 && ycmp <= 0 && zcmp <= 0) {
-            return -1;
+            return LESS;
         }
 
-        if (yover.get()) {// Y's overlap.
-            if (xover.get()) {// X's too?
+        if (yover.get()) {
+            
+            if (xover.get()) {
                 return zcmp;
-            } else if (zover.get()) { // Y's and Z's?
+            } else if (zover.get()) {
                 return xcmp;
-            } // Just Y's overlap.
-            else if (0 != zcmp) {// Z's equal?
+            } else if (0 != zcmp) {
                 return (xcmp);
-            } else if (xcmp == zcmp) {// See if X and Z dirs. agree.
-                return (xcmp);
-//            } // Fixes Trinsic mayor statue-through-roof.
-//            else if (inf1.ztop / 5 < inf2.zbot / 5 && inf2.info.occludes()) {
-//                return (-1);   // A floor above/below.
-//            } else if (inf2.ztop / 5 < inf1.zbot / 5 && inf1.info.occludes()) {
-//                return 1;
             } else {
-                return 0;
+                return (xcmp == zcmp ? xcmp : SAME);
             }
-        } else if (xover.get()) {     // X's overlap.
-            if (zover.get()) {// X's and Z's?
+            
+        } else if (xover.get()) {
+            
+            if (zover.get()) {
                 return (ycmp);
-            } else if (0 != zcmp) {// Z's equal?
+            } else if (0 != zcmp) {
                 return (ycmp);
             } else {
-                return (ycmp == zcmp ? ycmp : 0);
+                return (ycmp == zcmp ? ycmp : SAME);
             }
-        } // Neither X nor Y overlap.
-        else if (xcmp == -1) {      // o1 X before o2 X?
-            if (ycmp == -1) {// o1 Y before o2 Y?
-                // If Z agrees or overlaps, it's LT.
-                return ((zover.get() || zcmp <= 0) ? -1 : 0);
+            
+        } else if (xcmp == LESS) {
+            
+            if (ycmp == LESS) {
+                return ((zover.get() || zcmp <= 0) ? -1 : SAME);
             }
-        } else if (ycmp == 1) { // o1 Y after o2 Y?
+            
+        } else if (ycmp == GREATER) {
+            
             if (zover.get() || zcmp >= 0) {
-                return 1;
-                //} // Fixes Brit. museum statue-through-roof.
-                //else if (inf1.ztop / 5 < inf2.zbot / 5) {
-                //    return (-1);   // A floor above.
+                return GREATER;
             } else {
-                return 0;
+                return SAME;
             }
         }
-        return 0;
+        
+        return SAME;
     }
 
-    private static int compareRanges(float from1, float to1, float from2, float to2, AtomicBoolean overlap) {
-        int cmp;
-        if (to1 < from2) {
-            overlap.set(false);
-            cmp = -1;
-        } else if (to2 < from1) {
-            overlap.set(false);
-            cmp = 1;
-        } else {
-            overlap.set(true);
-            if (from1 < from2) {
-                cmp = -1;
-            } else if (from1 > from2) {
-                cmp = 1;
-            } else if (to1 < to2) {
-                cmp = 1;
-            } else if (to1 > to2) {
-                cmp = -1;
-            } else {
-                cmp = 0;
-            }
+    /**
+     * Is e2 dependent on e1
+     *
+     * @param e1
+     * @param e2
+     * @return
+     */
+    public static boolean isDependent(ObjectEntry e1, ObjectEntry e2) {
+
+        //only allow flat RLEs as dependents
+        if (!e2.flat) {
+            return false;
         }
-        return cmp;
+
+        if (Shapes.isRoof(e1.shapeIndex) || Shapes.isRoof(e2.shapeIndex)) {
+            return false;
+        }
+
+        set(e1, bb1);
+        set(e2, bb2);
+
+        int xcmp = compareRanges(bb1.min.x, bb1.max.x, bb2.min.x, bb2.max.x, xover);
+        int ycmp = compareRanges(bb1.min.y, bb1.max.y, bb2.min.y, bb2.max.y, yover);
+
+        if (xover.get() && xcmp == GREATER) {
+            return true;
+        }
+
+        if (yover.get() && ycmp == GREATER) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Compare two bounded boxes in the dimension provided
+     *
+     * @return -1 if 1st < 2nd, 0 if same, 1 if 1st > 2nd
+     */
+    private static int compareRanges(float min1, float max1, float min2, float max2, AtomicBoolean overlap) {
+
+        if (max1 < min2) {
+            overlap.set(false);
+            return LESS;
+        } else if (max2 < min1) {
+            overlap.set(false);
+            return GREATER;
+        } else {
+
+            if (max1 == min2) {
+                overlap.set(false);
+                return LESS;
+            }
+
+            if (min1 == max2) {
+                overlap.set(false);
+                return GREATER;
+            }
+
+            if (min1 < min2) {
+                overlap.set(true);
+                return LESS;
+            }
+
+            if (min1 > min2) {
+                overlap.set(true);
+                return GREATER;
+            }
+
+            return SAME;
+
+        }
     }
 
 }
