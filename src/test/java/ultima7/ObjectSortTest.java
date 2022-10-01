@@ -98,7 +98,7 @@ public class ObjectSortTest {
     //@Test(dataProvider = "dpAll")
     public void testDependents(ObjectEntry e1, ObjectEntry e2, boolean expected) throws Exception {
 
-        assertEquals(ObjectRendering.isDependent(e1, e2), expected);
+        //assertEquals(ObjectRendering.isDependent(e1, e2), expected);
     }
 
     private ObjectEntry get(List<ObjectEntry> objects, int id, int tx, int ty, int tz) {

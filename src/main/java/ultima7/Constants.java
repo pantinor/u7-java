@@ -660,6 +660,11 @@ public class Constants {
             int c = getShapeClass();
             return c == Shapes.building;
         }
+        
+        public boolean isUnusable() {
+            int c = getShapeClass();
+            return c == Shapes.unusable;
+        }
 
         public boolean isNpc() {
             int c = getShapeClass();
