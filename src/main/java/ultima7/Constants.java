@@ -22,8 +22,8 @@ public class Constants {
     public static final List<Palette> palettes = new ArrayList<>();
     public static final List<Xform> xforms = new ArrayList<>();
 
-    public static final String STATICDIR = "c://Users//panti/Desktop//ULTIMA7//STATIC//";
-    public static final String GAMEDATDIR = "c://Users//panti/Desktop//ULTIMA7//GAMEDAT//";
+    public static final String STATICDIR = "D://ultima//ULTIMA7//STATIC//";
+    public static final String GAMEDATDIR = "D://ultima//ULTIMA7//GAMEDAT//";
 
     public static final int TILE_DIM = 8;
     public static final int MAP_TILE_WIDTH = (2048 * 12) / TILE_DIM;
@@ -185,7 +185,7 @@ public class Constants {
                         Chunk c = region.chunks[y][x];
                         if (!c.objects.isEmpty()) {
                             for (ObjectEntry e : c.objects) {
-                                ObjectRendering.addObjectDependencies(e);
+                                //ObjectRendering.addObjectDependencies(e);
                             }
                         }
                     }
@@ -209,7 +209,6 @@ public class Constants {
 //                }
 //            }
 //        }
-
     }
 
     public static class Region {
@@ -660,7 +659,7 @@ public class Constants {
             int c = getShapeClass();
             return c == Shapes.building;
         }
-        
+
         public boolean isUnusable() {
             int c = getShapeClass();
             return c == Shapes.unusable;
@@ -835,7 +834,7 @@ public class Constants {
             int len = bb.get() & 0xff;
 
             if (len == 2) {
-                index_id = read2(bb);
+                index_id = read2(bb); //for containers
                 continue;
             }
 
@@ -849,7 +848,7 @@ public class Constants {
                 len = bb.get() & 0xff;
             }
 
-            if (len != 6 && len != 12) {
+            if (len != 6 && len != 10 && len != 12) {
                 continue;
             }
 
@@ -871,17 +870,8 @@ public class Constants {
 
             e.tx = b0 & 0xf;
             e.ty = b1 & 0xf;
-
-            if (extended) {
-                //e.shapeIndex = ((int) b2 & 0xff) + 256 * ((int) b3 & 0xff);
-                //e.frameIndex = (int) bb.get() & 0xff;
-            } else {
-                //e.shapeIndex = ((int) b2 & 0xff) + 256 * ((int) b3 & 3);
-                //e.frameIndex = ((int) b3 & 0xff) >> 2;
-            }
-
             e.shapeIndex = (b2 & 0xff) + 256 * (b3 & 3);
-            e.frameIndex = (b3 >> 2) & 0x1f;
+            e.frameIndex = (b3 & 0xff) >> 2;
             e.currentChunk = chunk;
 
             Record rec = RECORDS.get(e.shapeIndex);
@@ -889,19 +879,24 @@ public class Constants {
             if (e.frameIndex < rec.frames.length) {
                 e.frame = rec.frames[e.frameIndex];
             } else {
-                //System.out.println("IREG Got object entry with incorrect frame " + e + " " + rec.frames.length);
-                e.frame = rec.frames[0];
+                //System.out.printf("IREG Got object entry [%s] with incorrect frame [%d] frames length [%d] len [%d]\n", e, e.frameIndex, rec.frames.length, len);
+                e.frame = rec.frames[rec.frames.length - 1];
             }
 
             if (len == 6) {
-                byte b = bb.get();
-                e.tz = (b >> 4) & 0xf;
-            } else if (len == 12) {
+                e.tz = (bb.get() >> 4) & 0xf;
+                int quality = (int) bb.get() & 0xff;
+            } else if (len == 10) {
+                e.tz = (bb.get() >> 4) & 0xf;
+                int quality = (int) bb.get() & 0xff;
                 bb.getInt();//todo
-                bb.get();//todo
-                byte b = bb.get();
-                e.tz = (b >> 4) & 0xf;
-                bb.get();//todo
+            } else if (len == 12) {
+                int type = ((int) bb.get() & 0xff) + 256 * ((int) bb.get() & 0xff);
+                bb.get();
+                int quality = (int) bb.get() & 0xff;
+                bb.get();
+                e.tz = (bb.get() >> 4) & 0xf;
+                bb.get();
             }
 
             chunk.objects.add(e);
@@ -920,7 +915,7 @@ public class Constants {
         public Frame frame;
         public Chunk currentChunk; //current chunk that this object is in
         public boolean flat;
-        
+
         public List<ObjectEntry> dependents = new ArrayList<>();
 
         @Override
